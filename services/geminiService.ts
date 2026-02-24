@@ -2,7 +2,23 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Question, EssayFeedback, Flashcard } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Lazy initialization of the Gemini client
+let aiInstance: GoogleGenAI | null = null;
+
+const getAi = () => {
+  if (!aiInstance) {
+    const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.warn("GEMINI_API_KEY não configurada. Algumas funcionalidades podem não funcionar.");
+      // Retornamos uma instância dummy ou lidamos com o erro depois
+      // Para evitar crash no carregamento do módulo, não lançamos erro aqui
+      aiInstance = new GoogleGenAI({ apiKey: "MISSING_KEY" });
+    } else {
+      aiInstance = new GoogleGenAI({ apiKey });
+    }
+  }
+  return aiInstance;
+};
 
 const cleanJson = (text: string): string => {
   return text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -29,7 +45,7 @@ export const fetchSinglePoliceQuestion = async (
 ): Promise<Question | null> => {
   return withRetry(async () => {
     try {
-      const response = await ai.models.generateContent({
+      const response = await getAi().models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `PERSONA: Professor Especialista em Concursos Policiais com foco em Didática e Memorização.
         MISSÃO: Gerar 1 questão técnica inédita sobre ${topic} (${subject}).
@@ -101,7 +117,7 @@ export const generateQuestionsForSubject = async (
   if (count <= 0) return [];
   
   return withRetry(async () => {
-    const response = await ai.models.generateContent({
+    const response = await getAi().models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Gerar um lote de ${count} questões técnicas inéditas para a matéria: ${subject}.
       Nível: Difícil (estilo CEBRASPE/FGV para carreiras policiais).
@@ -152,7 +168,7 @@ export const generateQuestionsForSubject = async (
  */
 export const correctEssayWithAi = async (essay: string, theme: string): Promise<EssayFeedback> => {
   return withRetry(async () => {
-    const response = await ai.models.generateContent({
+    const response = await getAi().models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: `Analise a seguinte redação para o tema: "${theme}". 
       Use os critérios de correção de bancas como CEBRASPE/FGV (foco em concursos policiais).
@@ -199,7 +215,7 @@ export const generateFlashcardsBatch = async (
   count: number
 ): Promise<Flashcard[]> => {
   return withRetry(async () => {
-    const response = await ai.models.generateContent({
+    const response = await getAi().models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: `Gerar ${count} flashcards de alto rendimento para a matéria: ${subject}.
       Foque em conceitos-chave, prazos legais, mnemônicos e pegadinhas recorrentes em concursos policiais.`,
