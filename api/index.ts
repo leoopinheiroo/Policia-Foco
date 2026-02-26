@@ -145,23 +145,32 @@ async function startServer() {
   });
 
   app.post('/api/create-checkout-session', async (req, res) => {
-    const { plan, email } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
-    
-    const users = getUsers();
-    if (!users[email]) return res.status(404).json({ error: 'Usuário não encontrado.' });
-
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
-    const prices: Record<string, string> = {
-      'MONTHLY': process.env.STRIPE_PRICE_ID_MONTHLY || '',
-      'ANNUAL': process.env.STRIPE_PRICE_ID_ANNUAL || '',
-    };
-
     try {
+      const { plan, email } = req.body;
+      if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
+      
+      const users = getUsers();
+      if (!users[email]) return res.status(404).json({ error: 'Usuário não encontrado.' });
+
+      if (!process.env.STRIPE_SECRET_KEY) {
+        return res.status(500).json({ error: 'Configuração incompleta: STRIPE_SECRET_KEY não encontrada no servidor.' });
+      }
+
+      const appUrl = process.env.APP_URL || 'http://localhost:3000';
+      const prices: Record<string, string> = {
+        'MONTHLY': process.env.STRIPE_PRICE_ID_MONTHLY || '',
+        'ANNUAL': process.env.STRIPE_PRICE_ID_ANNUAL || '',
+      };
+
+      const priceId = prices[plan];
+      if (!priceId) {
+        return res.status(400).json({ error: `ID do preço para o plano ${plan} não configurado (STRIPE_PRICE_ID_${plan}).` });
+      }
+
       const session = await stripe.checkout.sessions.create({
         customer_email: email,
         payment_method_types: ['card'],
-        line_items: [{ price: prices[plan], quantity: 1 }],
+        line_items: [{ price: priceId, quantity: 1 }],
         mode: 'subscription',
         success_url: `${appUrl}/?status=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}/?status=cancel`,
@@ -169,7 +178,8 @@ async function startServer() {
       });
       res.json({ id: session.id, url: session.url });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error('Stripe Session Error:', error);
+      res.status(500).json({ error: `Erro no Stripe: ${error.message}` });
     }
   });
 

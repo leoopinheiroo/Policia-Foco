@@ -21,7 +21,9 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
     setStep('PROCESSING');
 
     try {
-      const email = localStorage.getItem('PF_USER_EMAIL') || 'cliente@exemplo.com';
+      const email = localStorage.getItem('PF_USER_EMAIL');
+      if (!email) throw new Error('Email do usuário não encontrado. Faça login novamente.');
+
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: {
@@ -33,16 +35,16 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
         }),
       });
 
-      const session = await response.json();
+      const data = await response.json();
 
-      if (session.url) {
-        window.location.href = session.url;
+      if (response.ok && data.url) {
+        window.location.href = data.url;
       } else {
-        throw new Error('Falha ao criar sessão de checkout');
+        throw new Error(data.error || 'Falha ao iniciar sessão de pagamento.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro no checkout:', error);
-      alert('Erro ao processar pagamento. Verifique se as chaves do Stripe estão configuradas.');
+      alert(`ERRO NO PAGAMENTO: ${error.message}\n\nVerifique se as chaves STRIPE_PRICE_ID_MONTHLY e STRIPE_PRICE_ID_ANNUAL estão configuradas na Vercel.`);
       setStep('DETAILS');
       setLoading(false);
     }
@@ -169,37 +171,21 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
              <form onSubmit={handlePay} className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    <PaymentMethodOption icon="💳" label="Cartão de Crédito" active />
-                   <PaymentMethodOption icon="📱" label="Pix (Aprovação Instantânea)" />
+                   <PaymentMethodOption icon="📱" label="Pix / Boleto" />
                 </div>
 
-                <div className="space-y-6">
-                   <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Número do Cartão</label>
-                      <input type="text" required placeholder="0000 0000 0000 0000" className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition font-mono" />
-                   </div>
-
-                   <div className="grid grid-cols-2 gap-6">
-                      <div>
-                         <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Validade</label>
-                         <input type="text" required placeholder="MM/AA" className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition font-mono" />
-                      </div>
-                      <div>
-                         <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">CVC</label>
-                         <input type="text" required placeholder="123" className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition font-mono" />
-                      </div>
-                   </div>
-
-                   <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Nome no Cartão</label>
-                      <input type="text" required placeholder="JOAO DA SILVA" className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition font-black uppercase" />
-                   </div>
+                <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
+                   <p className="text-sm text-blue-800 font-medium leading-relaxed">
+                      Você será redirecionado para o ambiente seguro do <strong>Stripe</strong> para finalizar seu pagamento. Aceitamos todas as bandeiras e Pix.
+                   </p>
                 </div>
 
                 <button 
                    type="submit"
-                   className="w-full bg-slate-900 text-white py-8 rounded-[2.5rem] font-black text-2xl hover:bg-slate-800 transition-all shadow-2xl hover:scale-[1.01] active:scale-95"
+                   disabled={loading}
+                   className="w-full bg-slate-900 text-white py-8 rounded-[2.5rem] font-black text-2xl hover:bg-slate-800 transition-all shadow-2xl hover:scale-[1.01] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                   PAGAR R$ {planInfo[selectedPlan].price.toFixed(2).replace('.', ',')} AGORA
+                   {loading ? 'PROCESSANDO...' : `PAGAR R$ ${planInfo[selectedPlan].price.toFixed(2).replace('.', ',')} AGORA`}
                 </button>
              </form>
 
