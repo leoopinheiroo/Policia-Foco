@@ -37,11 +37,22 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
 
     try {
       const endpoint = mode === 'LOGIN' ? '/api/auth/login' : '/api/auth/register';
+      const form = e.currentTarget as HTMLFormElement;
+      const formData = new FormData(form);
+      const name = formData.get('name');
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name: (e.target as any).name?.value }),
+        body: JSON.stringify({ email, password, name }),
       });
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        console.error("Non-JSON response:", text);
+        throw new Error(`ERRO NO SERVIDOR (${response.status}). VERIFIQUE SE O BACKEND ESTÁ RODANDO.`);
+      }
 
       const data = await response.json();
 

@@ -11,8 +11,17 @@ const USERS_FILE = path.join(__dirname, 'users.json');
 
 // Helper to manage mock database
 const getUsers = () => {
-  if (!fs.existsSync(USERS_FILE)) return {};
-  return JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
+  try {
+    if (!fs.existsSync(USERS_FILE)) {
+      fs.writeFileSync(USERS_FILE, JSON.stringify({}, null, 2));
+      return {};
+    }
+    const content = fs.readFileSync(USERS_FILE, 'utf-8');
+    return content ? JSON.parse(content) : {};
+  } catch (e) {
+    console.error('Error reading users file:', e);
+    return {};
+  }
 };
 
 const saveUsers = (users: any) => {
@@ -29,6 +38,11 @@ async function startServer() {
   });
 
   app.use(cors());
+
+  // Health check
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', message: 'Server is running' });
+  });
   
   // Stripe Webhook (must be before express.json())
   app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -198,6 +212,11 @@ async function startServer() {
     }
   });
 
+  // Catch-all for undefined API routes
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({ error: `Rota API não encontrada: ${req.method} ${req.url}` });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -215,6 +234,9 @@ async function startServer() {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+
+  return app;
 }
 
-startServer();
+export const app = await startServer();
+export default app;
