@@ -10,22 +10,31 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const USERS_FILE = path.join(__dirname, 'users.json');
 
 // Helper to manage mock database
+let memoryUsers: any = null;
+
 const getUsers = () => {
+  if (memoryUsers) return memoryUsers;
   try {
     if (!fs.existsSync(USERS_FILE)) {
-      fs.writeFileSync(USERS_FILE, JSON.stringify({}, null, 2));
       return {};
     }
     const content = fs.readFileSync(USERS_FILE, 'utf-8');
-    return content ? JSON.parse(content) : {};
+    memoryUsers = content ? JSON.parse(content) : {};
+    return memoryUsers;
   } catch (e) {
-    console.error('Error reading users file:', e);
-    return {};
+    console.error('Error reading users file, using memory:', e);
+    return memoryUsers || {};
   }
 };
 
 const saveUsers = (users: any) => {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+  memoryUsers = users;
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+  } catch (e) {
+    // On Vercel, this will fail. We log it but don't crash.
+    console.warn('Could not save to disk (normal on Vercel), keeping in memory.');
+  }
 };
 
 async function startServer() {
@@ -129,40 +138,53 @@ async function startServer() {
 
   // Auth Routes
   app.post('/api/auth/register', (req, res) => {
-    const { email, password, name } = req.body;
-    const users = getUsers();
+    try {
+      const { email, password, name } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
+      }
 
-    if (users[email]) {
-      return res.status(400).json({ error: 'Usuário já existe.' });
+      const users = getUsers();
+      if (users[email]) {
+        return res.status(400).json({ error: 'Operador já cadastrado no sistema.' });
+      }
+
+      users[email] = {
+        email,
+        password,
+        name,
+        subscription_status: 'pending',
+        created_at: new Date().toISOString()
+      };
+
+      saveUsers(users);
+      res.json({ success: true, email, status: 'pending' });
+    } catch (error: any) {
+      console.error('Register Error:', error);
+      res.status(500).json({ error: 'Erro interno ao processar alistamento.' });
     }
-
-    users[email] = {
-      email,
-      password, // In a real app, hash this!
-      name,
-      subscription_status: 'pending',
-      created_at: new Date().toISOString()
-    };
-
-    saveUsers(users);
-    res.json({ success: true, email, status: 'pending' });
   });
 
   app.post('/api/auth/login', (req, res) => {
-    const { email, password } = req.body;
-    const users = getUsers();
+    try {
+      const { email, password } = req.body;
+      const users = getUsers();
 
-    const user = users[email];
-    if (!user || user.password !== password) {
-      return res.status(401).json({ error: 'Credenciais inválidas.' });
+      const user = users[email];
+      if (!user || user.password !== password) {
+        return res.status(401).json({ error: 'ACESSO NEGADO. Credenciais inválidas.' });
+      }
+
+      res.json({ 
+        success: true, 
+        email: user.email, 
+        status: user.subscription_status,
+        name: user.name
+      });
+    } catch (error: any) {
+      console.error('Login Error:', error);
+      res.status(500).json({ error: 'Erro interno ao processar login.' });
     }
-
-    res.json({ 
-      success: true, 
-      email: user.email, 
-      status: user.subscription_status,
-      name: user.name
-    });
   });
 
   app.get('/api/user/status', (req, res) => {
@@ -231,10 +253,14 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  // Only start listening if not in a serverless environment
+  if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 
+  console.log('Backend initialized successfully.');
   return app;
 }
 
