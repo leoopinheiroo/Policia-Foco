@@ -137,11 +137,22 @@ async function startServer() {
   });
 
   app.get('/api/user/status', (req, res) => {
-    const email = req.query.email as string;
-    const users = getUsers();
-    const user = users[email];
-    if (!user) return res.status(404).json({ error: 'Não encontrado.' });
-    res.json({ status: user.subscription_status });
+    try {
+      const email = req.query.email as string;
+      if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
+      
+      const users = getUsers();
+      const user = users[email];
+      
+      if (!user) {
+        // Para o demo na Vercel, se o usuário não existe no cache, retornamos pendente
+        return res.json({ status: 'pending' });
+      }
+      
+      res.json({ status: user.subscription_status });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao verificar status.' });
+    }
   });
 
   app.post('/api/create-checkout-session', async (req, res) => {
@@ -150,7 +161,18 @@ async function startServer() {
       if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
       
       const users = getUsers();
-      if (!users[email]) return res.status(404).json({ error: 'Usuário não encontrado.' });
+      
+      // Se o usuário não existe (comum em serverless/Vercel sem DB real), criamos um registro temporário
+      if (!users[email]) {
+        console.log(`Usuário ${email} não encontrado no cache, criando registro temporário para checkout.`);
+        users[email] = {
+          email,
+          subscription_status: 'pending',
+          created_at: new Date().toISOString(),
+          name: 'Operador'
+        };
+        saveUsers(users);
+      }
 
       if (!process.env.STRIPE_SECRET_KEY) {
         return res.status(500).json({ error: 'Configuração incompleta: STRIPE_SECRET_KEY não encontrada no servidor.' });
