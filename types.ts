@@ -1,4 +1,12 @@
 
+export type SubscriptionStatus = 'pending' | 'active' | 'canceled' | 'unpaid';
+
+export interface User {
+  email: string;
+  subscriptionStatus: SubscriptionStatus;
+  stripeCustomerId?: string;
+}
+
 export type ViewState = 
   | 'LANDING'
   | 'LOGIN'

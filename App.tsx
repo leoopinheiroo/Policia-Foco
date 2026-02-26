@@ -16,26 +16,65 @@ import { Checkout } from './components/Checkout';
 const App: React.FC = () => {
   // Estado de autenticação persistente
   const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('PF_LOGGED') === 'true');
-  const [isPaid, setIsPaid] = useState(() => localStorage.getItem('PF_PAID') === 'true');
+  const [isPaid, setIsPaid] = useState(false); // Default to false, check from backend
   const [isGuest, setIsGuest] = useState(false);
+  const [userEmail, setUserEmail] = useState(() => localStorage.getItem('PF_USER_EMAIL') || '');
   const [selectedPlan, setSelectedPlan] = useState<'MONTHLY' | 'ANNUAL'>('ANNUAL');
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   
-  const [currentView, setCurrentView] = useState<ViewState>(() => {
-    if (localStorage.getItem('PF_LOGGED') === 'true' && localStorage.getItem('PF_PAID') === 'true') return 'HOME';
-    if (localStorage.getItem('PF_LOGGED') === 'true') return 'HOME';
-    return 'LANDING';
-  });
-  
+  const [currentView, setCurrentView] = useState<ViewState>('LANDING');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
 
+  const checkUserStatus = async (email: string) => {
+    if (!email) {
+      setIsCheckingStatus(false);
+      return;
+    }
+    try {
+      const response = await fetch(`/api/user/status?email=${encodeURIComponent(email)}`);
+      const data = await response.json();
+      if (data.status === 'active') {
+        setIsPaid(true);
+        if (currentView === 'LANDING' || currentView === 'LOGIN' || currentView === 'SIGNUP' || currentView === 'CHECKOUT') {
+          setCurrentView('HOME');
+        }
+      } else {
+        setIsPaid(false);
+        if (isLoggedIn && !isGuest) {
+          setCurrentView('CHECKOUT');
+        }
+      }
+    } catch (error) {
+      console.error('Error checking status:', error);
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
+  useEffect(() => {
+    // Handle Stripe Success Redirect
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('status') === 'success' && params.get('session_id')) {
+      const email = localStorage.getItem('PF_USER_EMAIL');
+      if (email) checkUserStatus(email);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (isLoggedIn && !isGuest && userEmail) {
+      checkUserStatus(userEmail);
+    } else {
+      setIsCheckingStatus(false);
+    }
+  }, [isLoggedIn, isGuest, userEmail]);
+
   useEffect(() => {
     if (!isGuest) {
       localStorage.setItem('PF_LOGGED', isLoggedIn.toString());
-      localStorage.setItem('PF_PAID', isPaid.toString());
+      localStorage.setItem('PF_USER_EMAIL', userEmail);
     }
-  }, [isLoggedIn, isPaid, isGuest]);
+  }, [isLoggedIn, isGuest, userEmail]);
 
   const activeSubject = useMemo(() => 
     SUBJECTS.find(s => s.id === selectedSubjectId), 
@@ -73,20 +112,12 @@ const App: React.FC = () => {
   const handleAuthSuccess = (email: string) => {
     setIsLoggedIn(true);
     setIsGuest(false);
+    setUserEmail(email);
     localStorage.setItem('PF_LOGGED', 'true');
-
-    if (email === 'leonardo.pinheiros@hotmail.com') {
-      setIsPaid(true);
-      localStorage.setItem('PF_PAID', 'true');
-      setCurrentView('HOME');
-    } else {
-      if (currentView === 'SIGNUP') {
-        setCurrentView('CHECKOUT');
-      } else {
-        if (isPaid) setCurrentView('HOME');
-        else setCurrentView('CHECKOUT');
-      }
-    }
+    localStorage.setItem('PF_USER_EMAIL', email);
+    
+    // Check status immediately after login
+    checkUserStatus(email);
   };
 
   const handleStart = (plan: 'MONTHLY' | 'ANNUAL') => {
@@ -232,6 +263,16 @@ const App: React.FC = () => {
       default: return <LandingPage onStart={handleStart} onLogin={() => setCurrentView('LOGIN')} onGuestAccess={handleGuestAccess} />;
     }
   };
+
+  if (isCheckingStatus) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-center p-6 text-white">
+         <div className="w-24 h-24 border-8 border-white/5 border-t-yellow-500 rounded-full animate-spin mb-10"></div>
+         <h2 className="text-4xl font-black tracking-tighter mb-4 italic">VERIFICANDO CREDENCIAIS</h2>
+         <p className="text-slate-400 max-w-md font-medium uppercase text-[10px] tracking-widest">Aguarde a validação do seu status operacional...</p>
+      </div>
+    );
+  }
 
   if (isLoggedIn && isPaid) {
     return (

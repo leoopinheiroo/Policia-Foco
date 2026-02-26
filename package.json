@@ -4,18 +4,24 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "start": "node server.ts"
   },
   "dependencies": {
     "@google/genai": "^1.38.0",
+    "@stripe/stripe-js": "^8.8.0",
     "@tailwindcss/vite": "^4.2.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "recharts": "^3.7.0",
-    "tailwindcss": "^4.2.1"
+    "stripe": "^20.3.1",
+    "tailwindcss": "^4.2.1",
+    "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -30,50 +30,46 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
     if (savedPassword) setPassword(savedPassword);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
-    // Simulação de delay de rede tática
-    setTimeout(() => {
-      // Regras de Autenticação (Leonardo Admin ou Demo)
-      const isOfficialAdmin = email === 'leonardo.pinheiros@hotmail.com' && password === 'leo5366';
-      const isDemoAccount = email === 'demo@policia.com';
+    try {
+      const endpoint = mode === 'LOGIN' ? '/api/auth/login' : '/api/auth/register';
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name: (e.target as any).name?.value }),
+      });
 
-      if (mode === 'LOGIN') {
-        if (isOfficialAdmin || isDemoAccount) {
-          // Persistência de Credenciais se o usuário marcou a opção
-          if (saveCredentials) {
-            localStorage.setItem(SAVED_EMAIL_KEY, email);
-            localStorage.setItem(SAVED_PASSWORD_KEY, password);
-            localStorage.setItem(REMEMBER_ME_KEY, 'true');
-          } else {
-            // Se desmarcou, removemos apenas as credenciais sensíveis
-            localStorage.removeItem(SAVED_EMAIL_KEY);
-            localStorage.removeItem(SAVED_PASSWORD_KEY);
-            localStorage.setItem(REMEMBER_ME_KEY, 'false');
-          }
+      const data = await response.json();
 
-          onAuth();
-          onSuccess(email);
-        } else {
-          setError("ACESSO NEGADO. VERIFIQUE SUAS CREDENCIAIS OPERACIONAIS.");
-          setIsLoading(false);
-          return;
-        }
-      } else {
-        // No cadastro, se marcado "salvar", já guarda para facilitar o primeiro login
-        if (saveCredentials) {
-          localStorage.setItem(SAVED_EMAIL_KEY, email);
-          localStorage.setItem(SAVED_PASSWORD_KEY, password);
-          localStorage.setItem(REMEMBER_ME_KEY, 'true');
-        }
-        onAuth();
-        onSuccess(email);
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro na autenticação.');
       }
+
+      // Persistência de Credenciais se o usuário marcou a opção
+      if (saveCredentials) {
+        localStorage.setItem(SAVED_EMAIL_KEY, email);
+        localStorage.setItem(SAVED_PASSWORD_KEY, password);
+        localStorage.setItem(REMEMBER_ME_KEY, 'true');
+      } else {
+        localStorage.removeItem(SAVED_EMAIL_KEY);
+        localStorage.removeItem(SAVED_PASSWORD_KEY);
+        localStorage.setItem(REMEMBER_ME_KEY, 'false');
+      }
+
+      onAuth();
+      onSuccess(email);
+      
+      // If it's a new signup, we should redirect to checkout immediately
+      // This will be handled in App.tsx based on the status
+    } catch (err: any) {
+      setError(err.message.toUpperCase());
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (

@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
 
 interface CheckoutProps {
   initialPlan: 'MONTHLY' | 'ANNUAL';
@@ -7,16 +8,44 @@ interface CheckoutProps {
   onBack: () => void;
 }
 
+const stripePromise = loadStripe(process.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
+
 export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComplete, onBack }) => {
   const [step, setStep] = useState<'DETAILS' | 'PROCESSING'>('DETAILS');
   const [selectedPlan, setSelectedPlan] = useState<'MONTHLY' | 'ANNUAL'>(initialPlan);
+  const [loading, setLoading] = useState(false);
 
-  const handlePay = (e: React.FormEvent) => {
+  const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
     setStep('PROCESSING');
-    setTimeout(() => {
-      onPaymentComplete();
-    }, 3000);
+
+    try {
+      const email = localStorage.getItem('PF_USER_EMAIL') || 'cliente@exemplo.com';
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          plan: selectedPlan,
+          email: email,
+        }),
+      });
+
+      const session = await response.json();
+
+      if (session.url) {
+        window.location.href = session.url;
+      } else {
+        throw new Error('Falha ao criar sessão de checkout');
+      }
+    } catch (error) {
+      console.error('Erro no checkout:', error);
+      alert('Erro ao processar pagamento. Verifique se as chaves do Stripe estão configuradas.');
+      setStep('DETAILS');
+      setLoading(false);
+    }
   };
 
   const planInfo = {
