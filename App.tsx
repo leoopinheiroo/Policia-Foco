@@ -37,14 +37,13 @@ const App: React.FC = () => {
       const data = await response.json();
       if (data.status === 'active') {
         setIsPaid(true);
-        if (currentView === 'LANDING' || currentView === 'LOGIN' || currentView === 'SIGNUP' || currentView === 'CHECKOUT') {
+        // Só redireciona para a HOME se o usuário estiver em telas de transição
+        if (currentView === 'LOGIN' || currentView === 'SIGNUP' || currentView === 'CHECKOUT') {
           setCurrentView('HOME');
         }
       } else {
         setIsPaid(false);
-        if (isLoggedIn && !isGuest) {
-          setCurrentView('CHECKOUT');
-        }
+        // NÃO redirecionamos automaticamente para o CHECKOUT aqui para permitir ver a Landing Page
       }
     } catch (error) {
       console.error('Error checking status:', error);
@@ -116,8 +115,18 @@ const App: React.FC = () => {
     localStorage.setItem('PF_LOGGED', 'true');
     localStorage.setItem('PF_USER_EMAIL', email);
     
-    // Check status immediately after login
-    checkUserStatus(email);
+    // Ao logar ou cadastrar, verificamos o status e aí sim decidimos se vai para Checkout ou Home
+    fetch(`/api/user/status?email=${encodeURIComponent(email)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'active') {
+          setIsPaid(true);
+          setCurrentView('HOME');
+        } else {
+          setIsPaid(false);
+          setCurrentView('CHECKOUT');
+        }
+      });
   };
 
   const handleStart = (plan: 'MONTHLY' | 'ANNUAL') => {

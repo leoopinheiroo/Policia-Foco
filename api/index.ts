@@ -208,14 +208,22 @@ async function startServer() {
         });
       }
 
+      // Se for Anual e o usuário quiser "Pagamento Único" (sem renovação), usamos 'payment'
+      // Se quiser que renove todo ano, mantemos 'subscription'
+      // Por padrão, planos são assinaturas. O que define o texto "por mês" ou "por ano" é o Preço no Stripe.
+      const mode = 'subscription'; 
+
       const session = await stripe.checkout.sessions.create({
         customer_email: email,
         payment_method_types: ['card'],
         line_items: [{ price: priceId, quantity: 1 }],
-        mode: 'subscription',
+        mode: mode,
         success_url: `${appUrl}/?status=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}/?status=cancel`,
-        metadata: { email }
+        subscription_data: mode === 'subscription' ? {
+          metadata: { email, plan }
+        } : undefined,
+        metadata: { email, plan }
       });
       res.json({ id: session.id, url: session.url });
     } catch (error: any) {
