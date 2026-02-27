@@ -40,10 +40,28 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Initialize Stripe
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2025-02-24.acacia' as any,
-  });
+  // Initialize Stripe lazily to avoid crash if key is missing
+  const getStripe = () => {
+    const key = (process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || '').trim();
+    
+    // Log de diagnóstico para ajudar o usuário a ver o que a Vercel está entregando
+    const availableKeys = Object.keys(process.env).filter(k => k.toUpperCase().includes('STRIPE'));
+    console.log('Chaves Stripe detectadas no ambiente:', availableKeys);
+
+    if (!key) {
+      throw new Error(`STRIPE_SECRET_KEY não encontrada. Chaves disponíveis: ${availableKeys.join(', ') || 'nenhuma'}`);
+    }
+    
+    console.log(`Stripe Key Diagnostic: Starts with "${key.substring(0, 7)}...", Length: ${key.length}`);
+    
+    if (!key.startsWith('sk_')) {
+      throw new Error('STRIPE_SECRET_KEY inválida (deve começar com sk_). Verifique se não usou a chave pública pk_ por engano.');
+    }
+
+    return new Stripe(key, {
+      apiVersion: '2025-02-24.acacia' as any,
+    });
+  };
 
   app.use(cors());
 
@@ -60,6 +78,7 @@ async function startServer() {
     let event;
 
     try {
+      const stripe = getStripe();
       if (!sig || !endpointSecret) throw new Error('Missing signature or secret');
       event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
     } catch (err: any) {
@@ -145,7 +164,6 @@ async function startServer() {
       const user = users[email];
       
       if (!user) {
-        // Para o demo na Vercel, se o usuário não existe no cache, retornamos pendente
         return res.json({ status: 'pending' });
       }
       
@@ -162,9 +180,8 @@ async function startServer() {
       
       const users = getUsers();
       
-      // Se o usuário não existe (comum em serverless/Vercel sem DB real), criamos um registro temporário
+      // Auto-create user if missing (common in serverless)
       if (!users[email]) {
-        console.log(`Usuário ${email} não encontrado no cache, criando registro temporário para checkout.`);
         users[email] = {
           email,
           subscription_status: 'pending',
@@ -174,19 +191,21 @@ async function startServer() {
         saveUsers(users);
       }
 
-      if (!process.env.STRIPE_SECRET_KEY) {
-        return res.status(500).json({ error: 'Configuração incompleta: STRIPE_SECRET_KEY não encontrada no servidor.' });
-      }
-
-      const appUrl = process.env.APP_URL || 'http://localhost:3000';
+      const stripe = getStripe();
+      const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+      
+      // Tenta encontrar os IDs dos preços usando várias nomenclaturas comuns
       const prices: Record<string, string> = {
-        'MONTHLY': process.env.STRIPE_PRICE_ID_MONTHLY || '',
-        'ANNUAL': process.env.STRIPE_PRICE_ID_ANNUAL || '',
+        'MONTHLY': (process.env.STRIPE_PRICE_ID_MONTHLY || process.env.STRIPE_MONTHLY_PRICE_ID || '').trim(),
+        'ANNUAL': (process.env.STRIPE_PRICE_ID_ANNUAL || process.env.STRIPE_ANNUAL_PRICE_ID || '').trim(),
       };
 
       const priceId = prices[plan];
       if (!priceId) {
-        return res.status(400).json({ error: `ID do preço para o plano ${plan} não configurado (STRIPE_PRICE_ID_${plan}).` });
+        const availableKeys = Object.keys(process.env).filter(k => k.toUpperCase().includes('PRICE'));
+        return res.status(400).json({ 
+          error: `ID do preço para o plano ${plan} não configurado. Procurei por STRIPE_PRICE_ID_${plan}. Chaves de preço encontradas na Vercel: ${availableKeys.join(', ') || 'nenhuma'}` 
+        });
       }
 
       const session = await stripe.checkout.sessions.create({
@@ -218,7 +237,6 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // Em produção na Vercel, servimos os arquivos estáticos da pasta dist
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
