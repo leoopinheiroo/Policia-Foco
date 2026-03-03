@@ -215,7 +215,7 @@ async function startServer() {
 
       const session = await stripe.checkout.sessions.create({
         customer_email: email,
-        payment_method_types: ['card'],
+        payment_method_types: ['card', 'pix', 'boleto'],
         line_items: [{ price: priceId, quantity: 1 }],
         mode: mode,
         success_url: `${appUrl}/?status=success&session_id={CHECKOUT_SESSION_ID}`,
@@ -223,7 +223,15 @@ async function startServer() {
         subscription_data: mode === 'subscription' ? {
           metadata: { email, plan }
         } : undefined,
-        metadata: { email, plan }
+        metadata: { email, plan },
+        payment_method_options: {
+          pix: {
+            expires_after_seconds: 3600 // 1 hora para pagar o PIX
+          },
+          boleto: {
+            expires_after_days: 3 // 3 dias para pagar o boleto
+          }
+        }
       });
       res.json({ id: session.id, url: session.url });
     } catch (error: any) {

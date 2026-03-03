@@ -15,6 +15,8 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
   const [selectedPlan, setSelectedPlan] = useState<'MONTHLY' | 'ANNUAL'>(initialPlan);
   const [loading, setLoading] = useState(false);
 
+  const [selectedMethod, setSelectedMethod] = useState<'CARD' | 'PIX'>('CARD');
+
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -32,6 +34,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
         body: JSON.stringify({
           plan: selectedPlan,
           email: email,
+          method: selectedMethod // Enviamos o método preferido, embora o Stripe mostre todos
         }),
       });
 
@@ -170,8 +173,12 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
 
              <form onSubmit={handlePay} className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <PaymentMethodOption icon="💳" label="Cartão de Crédito" active />
-                   <PaymentMethodOption icon="📱" label="Pix / Boleto" />
+                   <div onClick={() => setSelectedMethod('CARD')} className="cursor-pointer">
+                     <PaymentMethodOption icon="💳" label="Cartão de Crédito" active={selectedMethod === 'CARD'} />
+                   </div>
+                   <div onClick={() => setSelectedMethod('PIX')} className="cursor-pointer">
+                     <PaymentMethodOption icon="📱" label="Pix / Boleto" active={selectedMethod === 'PIX'} />
+                   </div>
                 </div>
 
                 <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">

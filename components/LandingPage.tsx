@@ -4,20 +4,35 @@ import React from 'react';
 interface LandingProps {
   onStart: (plan: 'MONTHLY' | 'ANNUAL') => void;
   onLogin: () => void;
-  onGuestAccess: () => void;
 }
 
-export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin, onGuestAccess }) => {
+export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
   return (
     <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-yellow-500 selection:text-slate-900">
       {/* Navigation */}
-      <nav className="flex items-center justify-between px-8 md:px-16 py-8 border-b border-white/5">
-        <div className="flex items-center gap-2">
-           <span className="text-2xl font-black text-yellow-500 tracking-tighter italic">POLÍCIAFOCO</span>
+      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/80 border-b border-white/5 px-8 md:px-16 py-6 flex items-center justify-between transition-all duration-300">
+        <div className="flex items-center gap-3 group cursor-pointer">
+           <div className="w-10 h-10 bg-yellow-500 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(234,179,8,0.3)] group-hover:scale-110 transition-transform">
+              <span className="text-slate-950 font-black text-xl">PF</span>
+           </div>
+           <span className="text-2xl font-black text-white tracking-tighter italic group-hover:text-yellow-500 transition-colors">POLÍCIA<span className="text-yellow-500 group-hover:text-white">FOCO</span></span>
         </div>
-        <div className="flex items-center gap-8">
-           <button onClick={onLogin} className="text-sm font-bold text-slate-400 hover:text-white transition">Entrar na Conta</button>
-           <button onClick={() => onStart('ANNUAL')} className="bg-yellow-500 text-slate-950 px-6 py-3 rounded-xl font-black text-sm hover:bg-yellow-400 transition shadow-lg shadow-yellow-500/20">QUERO SER APROVADO</button>
+        
+        <div className="flex items-center gap-12">
+           <button 
+             onClick={onLogin} 
+             className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-yellow-500 transition-all relative group"
+           >
+             Entrar na Conta
+             <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-yellow-500 transition-all group-hover:w-full"></span>
+           </button>
+           
+           <button 
+             onClick={() => onStart('ANNUAL')} 
+             className="bg-yellow-500 text-slate-950 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-yellow-400 transition-all hover:scale-105 active:scale-95 shadow-[0_10px_30px_-10px_rgba(234,179,8,0.5)]"
+           >
+             QUERO SER APROVADO
+           </button>
         </div>
       </nav>
 
@@ -29,17 +44,14 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin, onGuestA
               Treinamento de Elite 100% Digital
            </div>
            <h1 className="text-6xl md:text-8xl font-black tracking-tighter leading-tight mb-8">
-              PARE DE SER UM <br/> <span className="text-yellow-500 underline decoration-yellow-500/20">CANDIDATO</span>. <br/> SEJA UM POLICIAL.
+              A ÚLTIMA VEZ QUE VOCÊ ESTUDA COMO UM <span className="text-yellow-500 underline decoration-yellow-500/20">AMADOR</span>.
            </h1>
            <p className="text-slate-400 text-xl md:text-2xl leading-relaxed max-w-2xl mb-12">
-              A única plataforma que utiliza Inteligência Artificial para identificar seus pontos fracos e gerar questões baseadas no seu desempenho real. Foco total em PF, PRF e Polícias Civis.
+              Esqueça métodos obsoletos. Nossa IA de Elite mapeia sua mente, identifica suas falhas e gera o caminho exato para a sua aprovação. Do zero à farda, o seu futuro é decidido aqui.
            </p>
            <div className="flex flex-col sm:flex-row items-center gap-6 justify-center lg:justify-start">
               <button onClick={() => onStart('ANNUAL')} className="w-full sm:w-auto bg-yellow-500 text-slate-950 px-12 py-7 rounded-2xl font-black text-xl hover:bg-yellow-400 transition-all hover:scale-105 active:scale-95 shadow-2xl shadow-yellow-500/20">
-                 ASSINAR AGORA
-              </button>
-              <button onClick={onGuestAccess} className="w-full sm:w-auto bg-white/5 border border-white/10 text-white px-12 py-7 rounded-2xl font-black text-xl hover:bg-white/10 transition-all hover:scale-105 active:scale-95">
-                 ENTRAR COMO VISITANTE
+                 QUERO MINHA VAGA AGORA
               </button>
            </div>
            
@@ -74,19 +86,19 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin, onGuestA
       </header>
 
       {/* Pricing */}
-      <section className="px-8 md:px-16 py-32 bg-white text-slate-950 rounded-t-[5rem]">
+      <section className="px-8 md:px-16 py-32 bg-slate-900 text-white">
          <div className="max-w-7xl mx-auto">
             <div className="text-center mb-20">
-               <h2 className="text-5xl font-black tracking-tighter mb-4 text-slate-950">Escolha seu Plano de Ataque</h2>
-               <p className="text-slate-500 text-xl">Acesso imediato a todas as ferramentas de estudo.</p>
+               <h2 className="text-5xl font-black tracking-tighter mb-4">Escolha seu Plano de Ataque</h2>
+               <p className="text-slate-400 text-xl">Acesso imediato a todas as ferramentas de estudo de elite.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
                <PlanCard 
                   name="Plano Aspirante" 
                   price="29,90" 
                   period="Mensal" 
-                  features={["Questões Ilimitadas", "IA de Sugestões", "Vade Mecum Digital"]} 
+                  features={["Questões Ilimitadas", "IA de Sugestões", "Vade Mecum Digital", "Suporte 24h"]} 
                   onSelect={() => onStart('MONTHLY')}
                />
                <PlanCard 
@@ -94,7 +106,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin, onGuestA
                   price="297,00" 
                   period="Anual" 
                   highlight 
-                  features={["Tudo do Aspirante", "Correção de Redação IA (10/mês)", "Simulados Semanais", "Dashboard Avançado"]}
+                  features={["Tudo do Aspirante", "Correção de Redação IA (10/mês)", "Simulados Semanais", "Dashboard Avançado", "Acesso Offline"]}
                   onSelect={() => onStart('ANNUAL')}
                />
             </div>
@@ -110,19 +122,24 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin, onGuestA
 };
 
 const PlanCard = ({ name, price, period, features, highlight, onSelect }: any) => (
-  <div className={`p-10 rounded-[3rem] border-4 flex flex-col justify-between transition-all hover:scale-[1.02]
-     ${highlight ? 'border-yellow-500 bg-slate-950 text-white shadow-2xl' : 'border-slate-100 bg-white text-slate-900'}
+  <div className={`p-10 rounded-[3rem] border-2 flex flex-col justify-between transition-all hover:scale-[1.02] relative overflow-hidden
+     ${highlight ? 'border-yellow-500 bg-slate-950 shadow-[0_0_50px_-12px_rgba(234,179,8,0.3)]' : 'border-white/10 bg-slate-950'}
   `}>
+     {highlight && (
+        <div className="absolute top-0 right-0 bg-yellow-500 text-slate-950 px-6 py-2 text-[10px] font-black uppercase tracking-widest rounded-bl-2xl">
+           Melhor Custo-Benefício
+        </div>
+     )}
      <div>
         <h3 className="text-2xl font-black mb-2">{name}</h3>
         <div className="flex items-end gap-1 mb-8">
            <span className="text-sm font-bold mb-2">R$</span>
            <span className="text-6xl font-black tracking-tighter">{price}</span>
-           <span className="text-slate-400 font-bold mb-2">/{period}</span>
+           <span className="text-slate-500 font-bold mb-2">/{period}</span>
         </div>
         <ul className="space-y-4 mb-10">
            {features.map((f: string, i: number) => (
-              <li key={i} className="flex items-center gap-3 font-medium opacity-80">
+              <li key={i} className="flex items-center gap-3 font-medium text-slate-300">
                  <span className="text-yellow-500">✓</span> {f}
               </li>
            ))}
@@ -131,7 +148,7 @@ const PlanCard = ({ name, price, period, features, highlight, onSelect }: any) =
      <button 
         onClick={onSelect}
         className={`w-full py-5 rounded-2xl font-black transition-all
-        ${highlight ? 'bg-yellow-500 text-slate-950 hover:bg-yellow-400' : 'bg-slate-100 text-slate-900 hover:bg-slate-200'}
+        ${highlight ? 'bg-yellow-500 text-slate-950 hover:bg-yellow-400' : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'}
      `}>
         SELECIONAR PLANO
      </button>

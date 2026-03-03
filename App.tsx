@@ -16,8 +16,7 @@ import { Checkout } from './components/Checkout';
 const App: React.FC = () => {
   // Estado de autenticação persistente
   const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('PF_LOGGED') === 'true');
-  const [isPaid, setIsPaid] = useState(false); // Default to false, check from backend
-  const [isGuest, setIsGuest] = useState(false);
+  const [isPaid, setIsPaid] = useState(false);
   const [userEmail, setUserEmail] = useState(() => localStorage.getItem('PF_USER_EMAIL') || '');
   const [selectedPlan, setSelectedPlan] = useState<'MONTHLY' | 'ANNUAL'>('ANNUAL');
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
@@ -61,19 +60,17 @@ const App: React.FC = () => {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
-    if (isLoggedIn && !isGuest && userEmail) {
+    if (isLoggedIn && userEmail) {
       checkUserStatus(userEmail);
     } else {
       setIsCheckingStatus(false);
     }
-  }, [isLoggedIn, isGuest, userEmail]);
+  }, [isLoggedIn, userEmail]);
 
   useEffect(() => {
-    if (!isGuest) {
-      localStorage.setItem('PF_LOGGED', isLoggedIn.toString());
-      localStorage.setItem('PF_USER_EMAIL', userEmail);
-    }
-  }, [isLoggedIn, isGuest, userEmail]);
+    localStorage.setItem('PF_LOGGED', isLoggedIn.toString());
+    localStorage.setItem('PF_USER_EMAIL', userEmail);
+  }, [isLoggedIn, userEmail]);
 
   const activeSubject = useMemo(() => 
     SUBJECTS.find(s => s.id === selectedSubjectId), 
@@ -95,22 +92,13 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setIsPaid(false);
-    setIsGuest(false);
     localStorage.removeItem('PF_LOGGED');
     localStorage.removeItem('PF_PAID');
     setCurrentView('LANDING');
   };
 
-  const handleGuestAccess = () => {
-    setIsGuest(true);
-    setIsLoggedIn(true);
-    setIsPaid(true); 
-    setCurrentView('HOME');
-  };
-
   const handleAuthSuccess = (email: string) => {
     setIsLoggedIn(true);
-    setIsGuest(false);
     setUserEmail(email);
     localStorage.setItem('PF_LOGGED', 'true');
     localStorage.setItem('PF_USER_EMAIL', email);
@@ -141,12 +129,7 @@ const App: React.FC = () => {
           <div className="space-y-16 animate-fade-in">
             <header className="bg-gradient-to-br from-slate-950 to-slate-900 rounded-[4rem] p-12 md:p-20 text-white shadow-2xl relative overflow-hidden border border-slate-800">
                <div className="relative z-10 max-w-4xl">
-                  {isGuest && (
-                    <div className="inline-flex items-center gap-2 bg-blue-500/20 text-blue-400 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.2em] mb-6 border border-blue-500/30">
-                       MODO VISITANTE ATIVADO
-                    </div>
-                  )}
-                  <div className="inline-flex items-center gap-3 bg-yellow-500/10 text-yellow-500 px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-10 border border-yellow-500/20">
+                  <div className="inline-flex items-center gap-3 bg-yellow-500/10 text-yellow-500 px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-0.3em mb-10 border border-yellow-500/20">
                      <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
                      TREINAMENTO OPERACIONAL DE ELITE
                   </div>
@@ -154,7 +137,7 @@ const App: React.FC = () => {
                     DOMINE O <span className="text-yellow-500">EDITAL</span>.
                   </h1>
                   <p className="text-slate-400 text-xl leading-relaxed mb-14 max-w-2xl font-light">
-                    {isGuest ? 'Você está em modo de demonstração. Explore todas as 24 disciplinas obrigatórias e sinta o poder da nossa IA.' : 'Bem-vindo, Leonardo. Todas as 24 disciplinas obrigatórias estão prontas para o seu treinamento infinito.'}
+                    Bem-vindo, Operador. Todas as 24 disciplinas obrigatórias estão prontas para o seu treinamento infinito.
                   </p>
                   <button 
                       onClick={() => setCurrentView('SUBJECTS')}
@@ -269,7 +252,7 @@ const App: React.FC = () => {
       case 'DASHBOARD': return <Dashboard />;
       case 'FLASHCARDS': return <Flashcards />;
       case 'VADE_MECUM': return <VadeMecum />;
-      default: return <LandingPage onStart={handleStart} onLogin={() => setCurrentView('LOGIN')} onGuestAccess={handleGuestAccess} />;
+      default: return <LandingPage onStart={handleStart} onLogin={() => setCurrentView('LOGIN')} />;
     }
   };
 
@@ -295,7 +278,7 @@ const App: React.FC = () => {
           isOpen={sidebarOpen}
           setIsOpen={setSidebarOpen}
           onLogout={handleLogout}
-          userType={isGuest ? 'VISITANTE' : 'COMANDANTE'}
+          userType="COMANDANTE"
         />
         <main className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all">
           <div className="md:hidden bg-slate-950 text-white p-6 flex items-center justify-between sticky top-0 z-40 shadow-2xl border-b border-white/5">
@@ -304,7 +287,7 @@ const App: React.FC = () => {
              </button>
              <span className="font-black text-xl text-yellow-500 tracking-tighter">PolíciaFoco</span>
              <div className="w-10 h-10 rounded-xl bg-yellow-500 text-slate-950 flex items-center justify-center font-black text-sm">
-               {isGuest ? 'VT' : 'LP'}
+               LP
              </div>
           </div>
           <div className="flex-1 p-6 md:p-16 max-w-[1800px] mx-auto w-full">
@@ -315,7 +298,7 @@ const App: React.FC = () => {
     );
   }
 
-  if (currentView === 'LANDING') return <LandingPage onStart={handleStart} onLogin={() => setCurrentView('LOGIN')} onGuestAccess={handleGuestAccess} />;
+  if (currentView === 'LANDING') return <LandingPage onStart={handleStart} onLogin={() => setCurrentView('LOGIN')} />;
   if (currentView === 'LOGIN') return <Auth mode="LOGIN" onAuth={() => setIsLoggedIn(true)} onGoSignup={() => setCurrentView('SIGNUP')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
   if (currentView === 'SIGNUP') return <Auth mode="SIGNUP" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
   if (currentView === 'CHECKOUT') return <Checkout initialPlan={selectedPlan} onPaymentComplete={() => { setIsPaid(true); setCurrentView('HOME'); }} onBack={() => setCurrentView('LANDING')} />;
