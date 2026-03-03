@@ -15,7 +15,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
   const [selectedPlan, setSelectedPlan] = useState<'MONTHLY' | 'ANNUAL'>(initialPlan);
   const [loading, setLoading] = useState(false);
 
-  const [selectedMethod, setSelectedMethod] = useState<'CARD' | 'PIX'>('CARD');
+  const [selectedMethod, setSelectedMethod] = useState<'CARD' | 'BOLETO'>('CARD');
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +34,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
         body: JSON.stringify({
           plan: selectedPlan,
           email: email,
-          method: selectedMethod // Enviamos o método preferido, embora o Stripe mostre todos
+          method: selectedMethod // Enviamos o método preferido
         }),
       });
 
@@ -176,14 +176,14 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                    <div onClick={() => setSelectedMethod('CARD')} className="cursor-pointer">
                      <PaymentMethodOption icon="💳" label="Cartão de Crédito" active={selectedMethod === 'CARD'} />
                    </div>
-                   <div onClick={() => setSelectedMethod('PIX')} className="cursor-pointer">
-                     <PaymentMethodOption icon="📱" label="Pix / Boleto" active={selectedMethod === 'PIX'} />
+                   <div onClick={() => setSelectedMethod('BOLETO')} className="cursor-pointer">
+                     <PaymentMethodOption icon="📄" label="Boleto Bancário" active={selectedMethod === 'BOLETO'} />
                    </div>
                 </div>
 
                 <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
                    <p className="text-sm text-blue-800 font-medium leading-relaxed">
-                      Você será redirecionado para o ambiente seguro do <strong>Stripe</strong> para finalizar seu pagamento. Aceitamos todas as bandeiras e Pix.
+                      Você será redirecionado para o ambiente seguro do <strong>Stripe</strong> para finalizar seu pagamento. Aceitamos todas as bandeiras e Boleto.
                    </p>
                 </div>
 
