@@ -28,6 +28,13 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
     setErrorMessage(null);
     setStep('PROCESSING');
 
+    if (selectedMethod === 'PIX') {
+      setStep('DETAILS');
+      setLoading(false);
+      // Aqui poderíamos abrir um modal ou apenas deixar as instruções na tela
+      return;
+    }
+
     try {
       const email = localStorage.getItem('PF_USER_EMAIL');
       if (!email) throw new Error('Email do usuário não encontrado. Faça login novamente.');
@@ -185,30 +192,75 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                       ⚠️ ERRO: {errorMessage}
                    </div>
                 )}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                    <div onClick={() => setSelectedMethod('CARD')} className="cursor-pointer">
                      <PaymentMethodOption icon="💳" label="Cartão" active={selectedMethod === 'CARD'} />
-                   </div>
-                   <div onClick={() => setSelectedMethod('PIX')} className="cursor-pointer">
-                     <PaymentMethodOption icon="💎" label="Pix" active={selectedMethod === 'PIX'} />
                    </div>
                    <div onClick={() => setSelectedMethod('BOLETO')} className="cursor-pointer">
                      <PaymentMethodOption icon="📄" label="Boleto" active={selectedMethod === 'BOLETO'} />
                    </div>
+                   <div onClick={() => setSelectedMethod('PIX')} className="cursor-pointer">
+                     <PaymentMethodOption icon="📱" label="PIX" active={selectedMethod === 'PIX'} />
+                   </div>
                 </div>
 
-                <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
-                   <p className="text-sm text-blue-800 font-medium leading-relaxed">
-                      Você será redirecionado para o ambiente seguro do <strong>Stripe</strong> para finalizar seu pagamento. Aceitamos todas as bandeiras e Boleto.
-                   </p>
-                </div>
+                {selectedMethod === 'PIX' ? (
+                  <div className="bg-yellow-50 p-8 rounded-[2.5rem] border-2 border-yellow-200 shadow-inner">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center text-2xl shadow-lg">🔑</div>
+                      <h3 className="text-xl font-black tracking-tight text-yellow-900 uppercase">Pagamento via PIX</h3>
+                    </div>
+                    <p className="text-sm text-yellow-800 font-bold mb-6 leading-relaxed">
+                      Transfira o valor exato para a chave abaixo e envie o comprovante para liberação imediata.
+                    </p>
+                    <div className="flex flex-col md:flex-row gap-6 mb-6">
+                      <div className="flex-1 bg-white p-6 rounded-2xl border-2 border-yellow-300 group cursor-pointer active:scale-95 transition-transform" onClick={() => {
+                        navigator.clipboard.writeText("41828832847");
+                        alert("Chave PIX copiada!");
+                      }}>
+                        <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Chave PIX (CPF)</p>
+                        <p className="text-xl font-black text-slate-900 tracking-tighter break-all">418.288.328-47</p>
+                        <p className="text-[10px] font-bold text-yellow-600 mt-2 uppercase tracking-widest">Clique para copiar chave</p>
+                      </div>
+                      <div className="w-full md:w-32 h-32 bg-white p-2 rounded-2xl border-2 border-yellow-300 flex items-center justify-center">
+                        <div className="text-[10px] font-black text-slate-300 text-center uppercase">QR Code<br/>Indisponível</div>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <p className="text-xs text-yellow-900 font-bold flex items-center gap-2">
+                        <span className="w-5 h-5 bg-yellow-200 rounded-full flex items-center justify-center text-[10px]">1</span>
+                        Abra o app do seu banco e escolha PIX.
+                      </p>
+                      <p className="text-xs text-yellow-900 font-bold flex items-center gap-2">
+                        <span className="w-5 h-5 bg-yellow-200 rounded-full flex items-center justify-center text-[10px]">2</span>
+                        Cole a chave CPF acima.
+                      </p>
+                      <p className="text-xs text-yellow-900 font-bold flex items-center gap-2">
+                        <span className="w-5 h-5 bg-yellow-200 rounded-full flex items-center justify-center text-[10px]">3</span>
+                        Envie o comprovante para nosso WhatsApp/Suporte.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
+                    <p className="text-sm text-blue-800 font-medium leading-relaxed">
+                        Você será redirecionado para o ambiente seguro do <strong>Stripe</strong> para finalizar seu pagamento. Aceitamos todas as bandeiras e Boleto.
+                    </p>
+                  </div>
+                )}
 
                 <button 
                    type="submit"
-                   disabled={loading}
+                   disabled={loading && selectedMethod !== 'PIX'}
+                   onClick={(e) => {
+                     if (selectedMethod === 'PIX') {
+                       e.preventDefault();
+                       window.open('https://wa.me/5511939394092?text=Olá, acabei de fazer o PIX para o curso Polícia Foco!', '_blank');
+                     }
+                   }}
                    className="w-full bg-slate-900 text-white py-8 rounded-[2.5rem] font-black text-2xl hover:bg-slate-800 transition-all shadow-2xl hover:scale-[1.01] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                   {loading ? 'PROCESSANDO...' : `PAGAR R$ ${planInfo[selectedPlan].price.toFixed(2).replace('.', ',')} AGORA`}
+                   {selectedMethod === 'PIX' ? 'ENVIAR COMPROVANTE (WHATSAPP)' : (loading ? 'PROCESSANDO...' : `PAGAR R$ ${planInfo[selectedPlan].price.toFixed(2).replace('.', ',')} AGORA`)}
                 </button>
              </form>
 

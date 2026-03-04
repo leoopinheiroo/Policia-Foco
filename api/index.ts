@@ -42,24 +42,34 @@ async function startServer() {
 
   // Initialize Stripe lazily to avoid crash if key is missing
   const getStripe = () => {
-    let key = (process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || '').trim();
+    let key = '';
+    let usedVar = '';
+
+    if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY.trim()) {
+      key = process.env.STRIPE_SECRET_KEY.trim();
+      usedVar = 'STRIPE_SECRET_KEY';
+    } else if (process.env.STRIPE_SECRET && process.env.STRIPE_SECRET.trim()) {
+      key = process.env.STRIPE_SECRET.trim();
+      usedVar = 'STRIPE_SECRET';
+    }
     
     // Remove possíveis aspas ou caracteres invisíveis que podem vir da Vercel
     key = key.replace(/['"\s\u200B-\u200D\uFEFF]/g, '');
 
     const availableKeys = Object.keys(process.env).filter(k => k.toUpperCase().includes('STRIPE'));
-    console.log('Chaves Stripe detectadas:', availableKeys);
+    console.log(`[Stripe] Usando variável: ${usedVar}. Chaves detectadas:`, availableKeys);
 
     if (!key) {
-      throw new Error(`STRIPE_SECRET_KEY não encontrada. Verifique se a variável está salva na Vercel. Chaves disponíveis: ${availableKeys.join(', ')}`);
+      throw new Error(`Nenhuma chave secreta do Stripe encontrada. Verifique se STRIPE_SECRET_KEY está configurada na Vercel. Variáveis detectadas: ${availableKeys.join(', ') || 'nenhuma'}`);
     }
     
-    if (!key.startsWith('sk_')) {
+    // Stripe keys start with sk_ (secret) or rk_ (restricted)
+    if (!key.startsWith('sk_') && !key.startsWith('rk_')) {
       // Se a chave começar com pk_, o usuário inverteu as chaves
       if (key.startsWith('pk_')) {
-        throw new Error('Você colocou a CHAVE PÚBLICA (pk_) no lugar da CHAVE SECRETA (sk_). Inverta-as no painel da Vercel.');
+        throw new Error(`A variável ${usedVar} contém uma CHAVE PÚBLICA (pk_) em vez de uma CHAVE SECRETA (sk_). Inverta as chaves no painel da Vercel.`);
       }
-      throw new Error(`A chave configurada começa com "${key.substring(0, 3)}...", mas deve começar com "sk_". Verifique se não há espaços antes da chave.`);
+      throw new Error(`A chave na variável ${usedVar} começa com "${key.substring(0, 3)}...", mas deve começar com "sk_" ou "rk_". Verifique se você não copiou a chave errada ou se há espaços/caracteres extras.`);
     }
     
     return new Stripe(key, {
@@ -219,37 +229,40 @@ async function startServer() {
 
       let session;
       try {
-        session = await stripe.checkout.sessions.create({
+        // Usamos automatic_payment_methods para que o Stripe gerencie o que está ativo no dashboard
+        const sessionConfig: any = {
           customer_email: email,
-          payment_method_types: ['card', 'boleto', 'pix'],
           line_items: [{ price: priceId, quantity: 1 }],
           mode: mode,
           success_url: `${appUrl}/?status=success&session_id={CHECKOUT_SESSION_ID}`,
           cancel_url: `${appUrl}/?status=cancel`,
-          subscription_data: mode === 'subscription' ? {
-            metadata: { email, plan }
-          } : undefined,
           metadata: { email, plan },
-          payment_method_options: {
-            boleto: { expires_after_days: 3 },
-            pix: { expires_after_seconds: 3600 }
+          automatic_payment_methods: {
+            enabled: true,
           },
-        });
+        };
+
+        if (mode === 'subscription') {
+          sessionConfig.subscription_data = {
+            metadata: { email, plan }
+          };
+        }
+
+        session = await stripe.checkout.sessions.create(sessionConfig);
       } catch (stripeError: any) {
+        // Se falhar porque o preço não é recorrente (assinatura), tenta como 'payment' (venda única)
         if (stripeError.message.includes('recurring') || stripeError.message.includes('subscription')) {
           session = await stripe.checkout.sessions.create({
             customer_email: email,
-            payment_method_types: ['card', 'boleto', 'pix'],
             line_items: [{ price: priceId, quantity: 1 }],
             mode: 'payment',
             success_url: `${appUrl}/?status=success&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${appUrl}/?status=cancel`,
             metadata: { email, plan },
-            payment_method_options: {
-              boleto: { expires_after_days: 3 },
-              pix: { expires_after_seconds: 3600 }
+            automatic_payment_methods: {
+              enabled: true,
             },
-          });
+          } as any);
         } else {
           throw stripeError;
         }
