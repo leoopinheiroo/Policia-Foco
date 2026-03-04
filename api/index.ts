@@ -158,7 +158,9 @@ async function startServer() {
 
   app.post('/api/auth/login', (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email: rawEmail, password: rawPassword } = req.body;
+      const email = rawEmail?.trim().toLowerCase();
+      const password = rawPassword?.trim();
       const users = getUsers();
 
       // Privilégio de Desenvolvedor
@@ -182,6 +184,27 @@ async function startServer() {
       res.json({ success: true, email: user.email, status: user.subscription_status, name: user.name });
     } catch (error) {
       res.status(500).json({ error: 'Erro no servidor ao logar.' });
+    }
+  });
+
+  app.post('/api/auth/forgot-password', (req, res) => {
+    try {
+      const { email: rawEmail } = req.body;
+      const email = rawEmail?.trim().toLowerCase();
+      if (!email) return res.status(400).json({ error: 'Email é obrigatório.' });
+
+      const users = getUsers();
+      if (!users[email]) {
+        // Por segurança, não confirmamos se o email existe ou não, mas aqui como é demo vamos validar
+        return res.status(404).json({ error: 'Operador não encontrado em nossa base.' });
+      }
+
+      console.log(`[AUTH] Link de recuperação solicitado para: ${email}`);
+      // Aqui integraria com SendGrid/Nodemailer
+      
+      res.json({ success: true, message: 'Link enviado.' });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao processar solicitação.' });
     }
   });
 

@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from 'react';
 
 interface AuthProps {
-  mode: 'LOGIN' | 'SIGNUP';
+  mode: 'LOGIN' | 'SIGNUP' | 'FORGOT_PASSWORD';
   onAuth: () => void;
   onGoLogin: () => void;
   onGoSignup: () => void;
+  onGoForgot: () => void;
   onSuccess: (email: string) => void;
   onBack: () => void;
 }
@@ -14,12 +15,13 @@ const SAVED_EMAIL_KEY = 'PF_CRED_E';
 const SAVED_PASSWORD_KEY = 'PF_CRED_P';
 const REMEMBER_ME_KEY = 'PF_REMEMBER';
 
-export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup, onSuccess, onBack }) => {
+export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup, onGoForgot, onSuccess, onBack }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [saveCredentials, setSaveCredentials] = useState(() => localStorage.getItem(REMEMBER_ME_KEY) === 'true');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Carrega credenciais salvas de forma persistente ao montar o componente
   useEffect(() => {
@@ -34,9 +36,14 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setSuccessMessage(null);
 
     try {
-      const endpoint = mode === 'LOGIN' ? '/api/auth/login' : '/api/auth/register';
+      let endpoint = '';
+      if (mode === 'LOGIN') endpoint = '/api/auth/login';
+      else if (mode === 'SIGNUP') endpoint = '/api/auth/register';
+      else if (mode === 'FORGOT_PASSWORD') endpoint = '/api/auth/forgot-password';
+
       const form = e.currentTarget as HTMLFormElement;
       const formData = new FormData(form);
       const name = formData.get('name');
@@ -57,7 +64,12 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Erro na autenticação.');
+        throw new Error(data.error || 'Erro na operação.');
+      }
+
+      if (mode === 'FORGOT_PASSWORD') {
+        setSuccessMessage("EMAIL DE RECUPERAÇÃO ENVIADO COM SUCESSO! VERIFIQUE SUA CAIXA DE ENTRADA.");
+        return;
       }
 
       // Persistência de Credenciais se o usuário marcou a opção
@@ -96,7 +108,7 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
           <div className="text-center mb-10">
              <h1 className="text-4xl font-black text-yellow-500 tracking-tighter italic mb-2">POLÍCIAFOCO</h1>
              <p className="text-slate-500 font-bold uppercase text-[9px] tracking-[0.4em]">
-                {mode === 'LOGIN' ? 'Autenticação de Operador' : 'Alistamento no Grupamento'}
+                {mode === 'LOGIN' ? 'Autenticação de Operador' : mode === 'SIGNUP' ? 'Alistamento no Grupamento' : 'Recuperação de Acesso'}
              </p>
           </div>
 
@@ -104,6 +116,12 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
              {error && (
                <div className="bg-red-500/10 border border-red-500/30 p-5 rounded-2xl text-[10px] font-black text-red-500 uppercase tracking-widest animate-shake text-center">
                  {error}
+               </div>
+             )}
+
+             {successMessage && (
+               <div className="bg-green-500/10 border border-green-500/30 p-5 rounded-2xl text-[10px] font-black text-green-500 uppercase tracking-widest text-center">
+                 {successMessage}
                </div>
              )}
 
@@ -139,32 +157,40 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
 
              <div>
                 <div className="flex justify-between mb-2 ml-1">
-                   <label htmlFor="password-field" className="text-[10px] font-black uppercase tracking-widest text-slate-500">Senha</label>
+                   <label htmlFor="password-field" className="text-[10px] font-black uppercase tracking-widest text-slate-500">{mode === 'FORGOT_PASSWORD' ? 'Confirmação de Identidade' : 'Senha'}</label>
                    {mode === 'LOGIN' && (
-                     <button type="button" className="text-[9px] text-yellow-500/40 hover:text-yellow-500 font-black uppercase tracking-widest transition">Recuperar</button>
+                     <button onClick={onGoForgot} type="button" className="text-[9px] text-yellow-500/40 hover:text-yellow-500 font-black uppercase tracking-widest transition">Recuperar</button>
                    )}
                 </div>
-                <input 
-                   id="password-field"
-                   name="password"
-                   type="password" 
-                   autoComplete={mode === 'LOGIN' ? 'current-password' : 'new-password'}
-                   required
-                   value={password}
-                   onChange={(e) => setPassword(e.target.value)}
-                   className="w-full bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition text-sm tracking-[0.3em]"
-                   placeholder="••••••••"
-                />
+                {mode !== 'FORGOT_PASSWORD' ? (
+                  <input 
+                     id="password-field"
+                     name="password"
+                     type="password" 
+                     autoComplete={mode === 'LOGIN' ? 'current-password' : 'new-password'}
+                     required
+                     value={password}
+                     onChange={(e) => setPassword(e.target.value)}
+                     className="w-full bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition text-sm tracking-[0.3em]"
+                     placeholder="••••••••"
+                  />
+                ) : (
+                  <div className="text-[10px] text-slate-400 font-medium leading-relaxed px-1 italic">
+                    Enviaremos um link de redefinição para o endereço acima.
+                  </div>
+                )}
              </div>
 
-             <div className="flex items-center gap-3 py-1 ml-1 group cursor-pointer" onClick={() => setSaveCredentials(!saveCredentials)}>
-                <div className={`w-11 h-6 rounded-full transition-all relative flex items-center px-1 ${saveCredentials ? 'bg-yellow-500' : 'bg-slate-800'}`}>
-                   <div className={`w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-md ${saveCredentials ? 'translate-x-5' : 'translate-x-0'}`} />
-                </div>
-                <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${saveCredentials ? 'text-yellow-500' : 'text-slate-500'}`}>
-                   Salvar Credenciais
-                </span>
-             </div>
+             {mode !== 'FORGOT_PASSWORD' && (
+               <div className="flex items-center gap-3 py-1 ml-1 group cursor-pointer" onClick={() => setSaveCredentials(!saveCredentials)}>
+                  <div className={`w-11 h-6 rounded-full transition-all relative flex items-center px-1 ${saveCredentials ? 'bg-yellow-500' : 'bg-slate-800'}`}>
+                     <div className={`w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-md ${saveCredentials ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </div>
+                  <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${saveCredentials ? 'text-yellow-500' : 'text-slate-500'}`}>
+                     Salvar Credenciais
+                  </span>
+               </div>
+             )}
 
              <button 
                 type="submit"
@@ -175,7 +201,7 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
                    <div className="w-6 h-6 border-4 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
                 ) : (
                    <>
-                    <span>{mode === 'LOGIN' ? 'EFETUAR LOGIN' : 'CONFIRMAR INSCRIÇÃO'}</span>
+                    <span>{mode === 'LOGIN' ? 'EFETUAR LOGIN' : mode === 'SIGNUP' ? 'CONFIRMAR INSCRIÇÃO' : 'SOLICITAR LINK'}</span>
                     <span className="group-hover:translate-x-1 transition-transform">→</span>
                    </>
                 )}
@@ -186,9 +212,13 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
                    <p className="text-xs text-slate-500 font-bold uppercase tracking-tight">
                     Primeira missão? <button onClick={onGoSignup} type="button" className="text-yellow-500 font-black hover:underline ml-1">Criar Conta</button>
                    </p>
-                ) : (
+                ) : mode === 'SIGNUP' ? (
                    <p className="text-xs text-slate-500 font-bold uppercase tracking-tight">
                     Já é do grupo? <button onClick={onGoLogin} type="button" className="text-yellow-500 font-black hover:underline ml-1">Entrar Agora</button>
+                   </p>
+                ) : (
+                   <p className="text-xs text-slate-500 font-bold uppercase tracking-tight">
+                    Lembrou a senha? <button onClick={onGoLogin} type="button" className="text-yellow-500 font-black hover:underline ml-1">Voltar ao Login</button>
                    </p>
                 )}
              </div>

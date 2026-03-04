@@ -11,6 +11,7 @@ export type ViewState =
   | 'LANDING'
   | 'LOGIN'
   | 'SIGNUP'
+  | 'FORGOT_PASSWORD'
   | 'CHECKOUT'
   | 'HOME' 
   | 'SUBJECTS' 

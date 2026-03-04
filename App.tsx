@@ -306,8 +306,9 @@ const App: React.FC = () => {
   }
 
   if (currentView === 'LANDING') return <LandingPage onStart={handleStart} onLogin={() => setCurrentView('LOGIN')} />;
-  if (currentView === 'LOGIN') return <Auth mode="LOGIN" onAuth={() => setIsLoggedIn(true)} onGoSignup={() => setCurrentView('SIGNUP')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
-  if (currentView === 'SIGNUP') return <Auth mode="SIGNUP" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
+  if (currentView === 'LOGIN') return <Auth mode="LOGIN" onAuth={() => setIsLoggedIn(true)} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
+  if (currentView === 'SIGNUP') return <Auth mode="SIGNUP" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
+  if (currentView === 'FORGOT_PASSWORD') return <Auth mode="FORGOT_PASSWORD" onAuth={() => {}} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => {}} onSuccess={() => {}} onBack={() => setCurrentView('LOGIN')} />;
   if (currentView === 'CHECKOUT') return <Checkout initialPlan={selectedPlan} onPaymentComplete={() => { setIsPaid(true); setCurrentView('HOME'); }} onBack={() => setCurrentView('LANDING')} />;
 
   return null;
