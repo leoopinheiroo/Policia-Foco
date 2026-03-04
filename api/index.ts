@@ -73,7 +73,7 @@ async function startServer() {
     }
     
     return new Stripe(key, {
-      apiVersion: '2025-02-24.acacia' as any,
+      apiVersion: '2024-06-20' as any,
     });
   };
 
@@ -224,12 +224,11 @@ async function startServer() {
 
       // Se for Anual e o usuário quiser "Pagamento Único" (sem renovação), usamos 'payment'
       // Se quiser que renove todo ano, mantemos 'subscription'
-      // Por padrão, planos são assinaturas. O que define o texto "por mês" ou "por ano" é o Preço no Stripe.
       const mode = 'subscription'; 
 
       let session;
       try {
-        // Usamos automatic_payment_methods para que o Stripe gerencie o que está ativo no dashboard
+        // Usamos payment_method_types explicitamente para evitar erros de "unknown parameter"
         const sessionConfig: any = {
           customer_email: email,
           line_items: [{ price: priceId, quantity: 1 }],
@@ -237,9 +236,8 @@ async function startServer() {
           success_url: `${appUrl}/?status=success&session_id={CHECKOUT_SESSION_ID}`,
           cancel_url: `${appUrl}/?status=cancel`,
           metadata: { email, plan },
-          automatic_payment_methods: {
-            enabled: true,
-          },
+          payment_method_types: ['card', 'boleto'],
+          billing_address_collection: 'required',
         };
 
         if (mode === 'subscription') {
@@ -259,9 +257,8 @@ async function startServer() {
             success_url: `${appUrl}/?status=success&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${appUrl}/?status=cancel`,
             metadata: { email, plan },
-            automatic_payment_methods: {
-              enabled: true,
-            },
+            payment_method_types: ['card', 'boleto'],
+            billing_address_collection: 'required',
           } as any);
         } else {
           throw stripeError;
