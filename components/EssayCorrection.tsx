@@ -111,9 +111,9 @@ export const EssayCorrection: React.FC = () => {
                     <div className="flex flex-col items-center">
                         <div className={`
                             text-5xl font-black mb-1
-                            ${feedback.score >= 80 ? 'text-green-400' : feedback.score >= 60 ? 'text-yellow-400' : 'text-red-400'}
+                            ${feedback.score >= 8 ? 'text-green-400' : feedback.score >= 6 ? 'text-yellow-400' : 'text-red-400'}
                         `}>
-                            {feedback.score}
+                            {feedback.score.toFixed(1)}
                         </div>
                         <span className="text-xs bg-white/10 px-3 py-1 rounded-full uppercase tracking-widest font-bold">Nota Final</span>
                     </div>
@@ -123,6 +123,27 @@ export const EssayCorrection: React.FC = () => {
              {/* Content */}
              <div className="p-8 -mt-6">
                 
+                {/* Marked Essay Card */}
+                <div className="bg-white p-8 rounded-xl shadow-lg border border-slate-100 mb-8 relative z-20">
+                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                       <span>📝</span> Texto Analisado (Erros Sublinhados)
+                   </h3>
+                   <div 
+                     className="text-slate-800 leading-loose text-lg font-serif whitespace-pre-wrap essay-marked-content"
+                     dangerouslySetInnerHTML={{ __html: feedback.markedEssay }}
+                   />
+                   <style>{`
+                     .essay-marked-content u {
+                       text-decoration: underline;
+                       text-decoration-color: #ef4444;
+                       text-decoration-thickness: 2px;
+                       text-underline-offset: 4px;
+                       background-color: #fef2f2;
+                       cursor: help;
+                     }
+                   `}</style>
+                </div>
+
                 {/* Visão Geral Card */}
                 <div className="bg-white p-6 rounded-xl shadow-lg border border-slate-100 mb-8 relative z-20">
                     <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">

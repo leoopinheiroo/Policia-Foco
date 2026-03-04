@@ -81,6 +81,7 @@ export interface EssayFeedback {
   strengths: string[];
   weaknesses: string[];
   grammarIssues: string[];
+  markedEssay: string;
   improvementExamples: {
     original: string;
     corrected: string;

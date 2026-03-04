@@ -218,25 +218,61 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                         navigator.clipboard.writeText("41828832847");
                         alert("Chave PIX copiada!");
                       }}>
-                        <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Chave PIX (CPF)</p>
+                        <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Chave PIX</p>
                         <p className="text-xl font-black text-slate-900 tracking-tighter break-all">418.288.328-47</p>
                         <p className="text-[10px] font-bold text-yellow-600 mt-2 uppercase tracking-widest">Clique para copiar chave</p>
                       </div>
                       <div className="w-full md:w-32 h-32 bg-white p-2 rounded-2xl border-2 border-yellow-300 flex items-center justify-center">
-                        <div className="text-[10px] font-black text-slate-300 text-center uppercase">QR Code<br/>Indisponível</div>
+                        <button 
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setLoading(true);
+                            try {
+                              const email = localStorage.getItem('PF_USER_EMAIL');
+                              if (email) {
+                                const res = await fetch(`/api/user/status?email=${encodeURIComponent(email)}`);
+                                const data = await res.json();
+                                if (data.status === 'active') {
+                                  alert("Pagamento confirmado! Acesso liberado.");
+                                  onPaymentComplete();
+                                } else {
+                                  alert("Pagamento ainda não detectado. Se já pagou, aguarde alguns minutos ou envie o comprovante.");
+                                }
+                              }
+                            } catch (err) {
+                              console.error(err);
+                            } finally {
+                              setLoading(false);
+                            }
+                          }}
+                          className="text-[10px] font-black text-yellow-600 text-center uppercase hover:scale-105 transition-transform flex flex-col items-center gap-1"
+                        >
+                          <span className="text-xl">🔄</span>
+                          {loading ? '...' : 'Verificar Pagamento'}
+                        </button>
                       </div>
                     </div>
-                    <div className="space-y-3">
+                    <div className="mt-4 p-4 bg-white/50 rounded-xl border border-yellow-200">
+                      <p className="text-[10px] font-black uppercase text-yellow-600 mb-1">Favorecido / Desenvolvedor</p>
+                      <p className="text-sm font-black text-yellow-900">Leonardo N. Pinheiro</p>
+                    </div>
+
+                    <div className="space-y-3 mt-6">
                       <p className="text-xs text-yellow-900 font-bold flex items-center gap-2">
                         <span className="w-5 h-5 bg-yellow-200 rounded-full flex items-center justify-center text-[10px]">1</span>
                         Abra o app do seu banco e escolha PIX.
                       </p>
                       <p className="text-xs text-yellow-900 font-bold flex items-center gap-2">
                         <span className="w-5 h-5 bg-yellow-200 rounded-full flex items-center justify-center text-[10px]">2</span>
-                        Cole a chave CPF acima.
+                        Cole a chave acima.
                       </p>
                       <p className="text-xs text-yellow-900 font-bold flex items-center gap-2">
                         <span className="w-5 h-5 bg-yellow-200 rounded-full flex items-center justify-center text-[10px]">3</span>
+                        Confirme o nome <strong>Leonardo N. Pinheiro</strong>.
+                      </p>
+                      <p className="text-xs text-yellow-900 font-bold flex items-center gap-2">
+                        <span className="w-5 h-5 bg-yellow-200 rounded-full flex items-center justify-center text-[10px]">4</span>
                         Envie o comprovante para nosso WhatsApp/Suporte.
                       </p>
                     </div>
@@ -244,7 +280,8 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                 ) : (
                   <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
                     <p className="text-sm text-blue-800 font-medium leading-relaxed">
-                        Você será redirecionado para o ambiente seguro do <strong>Stripe</strong> para finalizar seu pagamento. Aceitamos todas as bandeiras e Boleto.
+                        Você será redirecionado para o ambiente seguro do <strong>Stripe</strong> para finalizar seu pagamento. 
+                        {selectedMethod === 'BOLETO' ? ' Lá você poderá gerar o código de barras do seu boleto.' : ' Aceitamos todas as bandeiras de cartão.'}
                     </p>
                   </div>
                 )}

@@ -68,6 +68,13 @@ const App: React.FC = () => {
   }, [isLoggedIn, userEmail]);
 
   useEffect(() => {
+    // Bloqueio de acesso para não pagantes
+    if (!isCheckingStatus && isLoggedIn && !isPaid && !['CHECKOUT', 'LOGIN', 'SIGNUP', 'LANDING'].includes(currentView)) {
+      setCurrentView('CHECKOUT');
+    }
+  }, [isLoggedIn, isPaid, currentView, isCheckingStatus]);
+
+  useEffect(() => {
     localStorage.setItem('PF_LOGGED', isLoggedIn.toString());
     localStorage.setItem('PF_USER_EMAIL', userEmail);
   }, [isLoggedIn, userEmail]);

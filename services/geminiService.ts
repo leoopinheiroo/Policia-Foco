@@ -170,21 +170,35 @@ export const correctEssayWithAi = async (essay: string, theme: string): Promise<
   return withRetry(async () => {
     const response = await getAi().models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: `Analise a seguinte redação para o tema: "${theme}". 
-      Use os critérios de correção de bancas como CEBRASPE/FGV (foco em concursos policiais).
+      contents: `PERSONA: Professor de Redação Especialista em Concursos Policiais (Bancas CESPE/Cebraspe, FGV, VUNESP).
+      MISSÃO: Corrigir a redação abaixo de forma rigorosa, simulando o espelho de correção oficial.
       
-      Redação:
-      ${essay}`,
+      TEMA: "${theme}"
+      REDAÇÃO DO ALUNO:
+      ${essay}
+      
+      CRITÉRIOS DE AVALIAÇÃO:
+      1. Apresentação e Legibilidade (Estrutura dissertativa-argumentativa).
+      2. Desenvolvimento do Tema (Pertinência e profundidade).
+      3. Coesão e Coerência (Uso de conectivos, pronomes, progressão textual).
+      4. Domínio da Norma Culta (Gramática, pontuação, concordância, regência).
+      
+      REQUISITOS DA RESPOSTA:
+      - NOTA: De 0 a 10.0. Comece com 10.0 e aplique descontos rigorosos para cada erro gramatical (-0.1 a -0.5 dependendo da gravidade) e descontos maiores para falhas de estrutura ou fuga ao tema.
+      - MARKED_ESSAY: Retorne o texto completo da redação, mas envolva os erros em tags <u></u> (ex: <u>erro de concordância</u>).
+      - COMENTÁRIOS: Explique a nota detalhadamente, citando os critérios da banca escolhida (CESPE ou VUNESP).
+      - EXEMPLOS: Mostre como reescrever trechos problemáticos.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            score: { type: Type.INTEGER, description: "Nota de 0 a 100" },
+            score: { type: Type.NUMBER, description: "Nota de 0 a 10.0" },
             comments: { type: Type.STRING, description: "Visão geral do examinador" },
             strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
             weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
             grammarIssues: { type: Type.ARRAY, items: { type: Type.STRING } },
+            markedEssay: { type: Type.STRING, description: "Texto da redação com erros sublinhados usando <u></u>" },
             improvementExamples: {
               type: Type.ARRAY,
               items: {
@@ -198,7 +212,7 @@ export const correctEssayWithAi = async (essay: string, theme: string): Promise<
               }
             }
           },
-          required: ["score", "comments", "strengths", "weaknesses", "grammarIssues", "improvementExamples"]
+          required: ["score", "comments", "strengths", "weaknesses", "grammarIssues", "markedEssay", "improvementExamples"]
         }
       }
     });
