@@ -8,18 +8,24 @@ interface CheckoutProps {
   onBack: () => void;
 }
 
-const stripePromise = loadStripe(process.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
+const stripePromise = loadStripe(
+  (import.meta as any).env.VITE_STRIPE_PUBLISHABLE_KEY || 
+  (import.meta as any).env.STRIPE_PUBLISHABLE_KEY || 
+  ''
+);
 
 export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComplete, onBack }) => {
   const [step, setStep] = useState<'DETAILS' | 'PROCESSING'>('DETAILS');
   const [selectedPlan, setSelectedPlan] = useState<'MONTHLY' | 'ANNUAL'>(initialPlan);
   const [loading, setLoading] = useState(false);
 
-  const [selectedMethod, setSelectedMethod] = useState<'CARD' | 'BOLETO'>('CARD');
+  const [selectedMethod, setSelectedMethod] = useState<'CARD' | 'BOLETO' | 'PIX'>('CARD');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setErrorMessage(null);
     setStep('PROCESSING');
 
     try {
@@ -43,13 +49,15 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
       if (response.ok && data.url) {
         window.location.href = data.url;
       } else {
-        throw new Error(data.error || 'Falha ao iniciar sessão de pagamento.');
+        const msg = data.error || 'Falha ao iniciar sessão de pagamento.';
+        setErrorMessage(msg);
+        throw new Error(msg);
       }
     } catch (error: any) {
       console.error('Erro no checkout:', error);
-      alert(`ERRO NO PAGAMENTO: ${error.message}\n\nVerifique se as chaves STRIPE_PRICE_ID_MONTHLY e STRIPE_PRICE_ID_ANNUAL estão configuradas na Vercel.`);
       setStep('DETAILS');
       setLoading(false);
+      if (!errorMessage) setErrorMessage(error.message);
     }
   };
 
@@ -172,12 +180,20 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
              </div>
 
              <form onSubmit={handlePay} className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {errorMessage && (
+                   <div className="bg-red-50 border border-red-200 p-6 rounded-2xl text-red-700 text-sm font-bold">
+                      ⚠️ ERRO: {errorMessage}
+                   </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                    <div onClick={() => setSelectedMethod('CARD')} className="cursor-pointer">
-                     <PaymentMethodOption icon="💳" label="Cartão de Crédito" active={selectedMethod === 'CARD'} />
+                     <PaymentMethodOption icon="💳" label="Cartão" active={selectedMethod === 'CARD'} />
+                   </div>
+                   <div onClick={() => setSelectedMethod('PIX')} className="cursor-pointer">
+                     <PaymentMethodOption icon="💎" label="Pix" active={selectedMethod === 'PIX'} />
                    </div>
                    <div onClick={() => setSelectedMethod('BOLETO')} className="cursor-pointer">
-                     <PaymentMethodOption icon="📄" label="Boleto Bancário" active={selectedMethod === 'BOLETO'} />
+                     <PaymentMethodOption icon="📄" label="Boleto" active={selectedMethod === 'BOLETO'} />
                    </div>
                 </div>
 

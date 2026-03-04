@@ -42,22 +42,26 @@ async function startServer() {
 
   // Initialize Stripe lazily to avoid crash if key is missing
   const getStripe = () => {
-    const key = (process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || '').trim();
+    let key = (process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || '').trim();
     
-    // Log de diagnóstico para ajudar o usuário a ver o que a Vercel está entregando
+    // Remove possíveis aspas ou caracteres invisíveis que podem vir da Vercel
+    key = key.replace(/['"\s\u200B-\u200D\uFEFF]/g, '');
+
     const availableKeys = Object.keys(process.env).filter(k => k.toUpperCase().includes('STRIPE'));
-    console.log('Chaves Stripe detectadas no ambiente:', availableKeys);
+    console.log('Chaves Stripe detectadas:', availableKeys);
 
     if (!key) {
-      throw new Error(`STRIPE_SECRET_KEY não encontrada. Chaves disponíveis: ${availableKeys.join(', ') || 'nenhuma'}`);
+      throw new Error(`STRIPE_SECRET_KEY não encontrada. Verifique se a variável está salva na Vercel. Chaves disponíveis: ${availableKeys.join(', ')}`);
     }
-    
-    console.log(`Stripe Key Diagnostic: Starts with "${key.substring(0, 7)}...", Length: ${key.length}`);
     
     if (!key.startsWith('sk_')) {
-      throw new Error('STRIPE_SECRET_KEY inválida (deve começar com sk_). Verifique se não usou a chave pública pk_ por engano.');
+      // Se a chave começar com pk_, o usuário inverteu as chaves
+      if (key.startsWith('pk_')) {
+        throw new Error('Você colocou a CHAVE PÚBLICA (pk_) no lugar da CHAVE SECRETA (sk_). Inverta-as no painel da Vercel.');
+      }
+      throw new Error(`A chave configurada começa com "${key.substring(0, 3)}...", mas deve começar com "sk_". Verifique se não há espaços antes da chave.`);
     }
-
+    
     return new Stripe(key, {
       apiVersion: '2025-02-24.acacia' as any,
     });
@@ -192,7 +196,7 @@ async function startServer() {
       }
 
       const stripe = getStripe();
-      const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+      const appUrl = (process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
       
       // Tenta encontrar os IDs dos preços usando várias nomenclaturas comuns
       const prices: Record<string, string> = {
@@ -213,23 +217,43 @@ async function startServer() {
       // Por padrão, planos são assinaturas. O que define o texto "por mês" ou "por ano" é o Preço no Stripe.
       const mode = 'subscription'; 
 
-      const session = await stripe.checkout.sessions.create({
-        customer_email: email,
-        payment_method_types: ['card', 'boleto'],
-        line_items: [{ price: priceId, quantity: 1 }],
-        mode: mode,
-        success_url: `${appUrl}/?status=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${appUrl}/?status=cancel`,
-        subscription_data: mode === 'subscription' ? {
-          metadata: { email, plan }
-        } : undefined,
-        metadata: { email, plan },
-        payment_method_options: {
-          boleto: {
-            expires_after_days: 3,
+      let session;
+      try {
+        session = await stripe.checkout.sessions.create({
+          customer_email: email,
+          payment_method_types: ['card', 'boleto', 'pix'],
+          line_items: [{ price: priceId, quantity: 1 }],
+          mode: mode,
+          success_url: `${appUrl}/?status=success&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${appUrl}/?status=cancel`,
+          subscription_data: mode === 'subscription' ? {
+            metadata: { email, plan }
+          } : undefined,
+          metadata: { email, plan },
+          payment_method_options: {
+            boleto: { expires_after_days: 3 },
+            pix: { expires_after_seconds: 3600 }
           },
-        },
-      });
+        });
+      } catch (stripeError: any) {
+        if (stripeError.message.includes('recurring') || stripeError.message.includes('subscription')) {
+          session = await stripe.checkout.sessions.create({
+            customer_email: email,
+            payment_method_types: ['card', 'boleto', 'pix'],
+            line_items: [{ price: priceId, quantity: 1 }],
+            mode: 'payment',
+            success_url: `${appUrl}/?status=success&session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${appUrl}/?status=cancel`,
+            metadata: { email, plan },
+            payment_method_options: {
+              boleto: { expires_after_days: 3 },
+              pix: { expires_after_seconds: 3600 }
+            },
+          });
+        } else {
+          throw stripeError;
+        }
+      }
       res.json({ id: session.id, url: session.url });
     } catch (error: any) {
       console.error('Stripe Session Error:', error);
