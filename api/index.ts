@@ -160,6 +160,22 @@ async function startServer() {
     try {
       const { email, password } = req.body;
       const users = getUsers();
+
+      // Privilégio de Desenvolvedor
+      if (email === 'leonardo.pinheiros@hotmail.com' && password === 'leo5366.Leo') {
+        if (!users[email]) {
+          users[email] = {
+            email,
+            password,
+            name: 'Leonardo (Dev)',
+            subscription_status: 'active',
+            created_at: new Date().toISOString()
+          };
+          saveUsers(users);
+        }
+        return res.json({ success: true, email, status: 'active', name: 'Leonardo (Dev)' });
+      }
+
       const user = users[email];
       if (!user || user.password !== password) return res.status(401).json({ error: 'Credenciais inválidas.' });
 
@@ -174,6 +190,11 @@ async function startServer() {
       const email = req.query.email as string;
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
       
+      // Privilégio de Desenvolvedor
+      if (email === 'leonardo.pinheiros@hotmail.com') {
+        return res.json({ status: 'active' });
+      }
+
       const users = getUsers();
       const user = users[email];
       
