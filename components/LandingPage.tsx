@@ -10,29 +10,33 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
   return (
     <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-yellow-500 selection:text-slate-900">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/80 border-b border-white/5 px-8 md:px-16 py-6 flex items-center justify-between transition-all duration-300">
-        <div className="flex items-center gap-3 group cursor-pointer">
-           <div className="w-10 h-10 bg-yellow-500 rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(234,179,8,0.3)] group-hover:scale-110 transition-transform">
-              <span className="text-slate-950 font-black text-xl">PF</span>
-           </div>
-           <span className="text-2xl font-black text-white tracking-tighter italic group-hover:text-yellow-500 transition-colors">POLÍCIA<span className="text-yellow-500 group-hover:text-white">FOCO</span></span>
-        </div>
-        
-        <div className="flex items-center gap-12">
-           <button 
-             onClick={onLogin} 
-             className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-yellow-500 transition-all relative group"
-           >
-             Entrar na Conta
-             <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-yellow-500 transition-all group-hover:w-full"></span>
-           </button>
-           
-           <button 
-             onClick={() => onStart('ANNUAL')} 
-             className="bg-yellow-500 text-slate-950 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-yellow-400 transition-all hover:scale-105 active:scale-95 shadow-[0_10px_30px_-10px_rgba(234,179,8,0.5)]"
-           >
-             QUERO SER APROVADO
-           </button>
+      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/90 border-b border-white/5 transition-all duration-300">
+        <div className="max-w-7xl mx-auto px-6 md:px-12 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-4 group cursor-pointer">
+             <div className="w-11 h-11 bg-yellow-500 rounded-xl flex items-center justify-center shadow-[0_0_25px_rgba(234,179,8,0.2)] group-hover:scale-110 transition-transform duration-500">
+                <span className="text-slate-950 font-black text-xl tracking-tighter">GA</span>
+             </div>
+             <span className="text-2xl font-black text-white tracking-tighter italic group-hover:text-yellow-500 transition-colors duration-300">
+               GENIUS<span className="text-yellow-500 group-hover:text-white">AI</span>
+             </span>
+          </div>
+          
+          <div className="flex items-center gap-8 md:gap-12">
+             <button 
+               onClick={onLogin} 
+               className="hidden sm:block text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 hover:text-white transition-all relative group whitespace-nowrap"
+             >
+               Entrar na Conta
+               <span className="absolute -bottom-2 left-0 w-0 h-0.5 bg-yellow-500 transition-all duration-300 group-hover:w-full"></span>
+             </button>
+             
+             <button 
+               onClick={() => onStart('ANNUAL')} 
+               className="bg-yellow-500 text-slate-950 px-6 md:px-10 py-3.5 rounded-xl font-black text-[11px] uppercase tracking-[0.15em] hover:bg-white hover:text-slate-950 transition-all hover:scale-105 active:scale-95 shadow-[0_10px_40px_-10px_rgba(234,179,8,0.4)] whitespace-nowrap"
+             >
+               Quero ser Aprovado
+             </button>
+          </div>
         </div>
       </nav>
 
@@ -115,7 +119,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
 
       {/* Footer */}
       <footer className="py-20 border-t border-white/5 text-center text-slate-600 text-sm">
-         <p>&copy; 2025 PolíciaFoco - Treinamento de Alto Rendimento. Todos os direitos reservados.</p>
+         <p>&copy; 2025 GeniusAI - Treinamento de Alto Rendimento. Todos os direitos reservados.</p>
       </footer>
     </div>
   );
