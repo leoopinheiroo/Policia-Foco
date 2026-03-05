@@ -169,7 +169,7 @@ export const generateQuestionsForSubject = async (
 export const correctEssayWithAi = async (essay: string, theme: string): Promise<EssayFeedback> => {
   return withRetry(async () => {
     const response = await getAi().models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-flash-preview',
       contents: `PERSONA: Professor de Redação Especialista em Concursos Policiais (Bancas CESPE/Cebraspe, FGV, VUNESP).
       MISSÃO: Corrigir a redação abaixo de forma rigorosa, simulando o espelho de correção oficial.
       
@@ -230,7 +230,7 @@ export const generateFlashcardsBatch = async (
 ): Promise<Flashcard[]> => {
   return withRetry(async () => {
     const response = await getAi().models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-flash-preview',
       contents: `Gerar ${count} flashcards de alto rendimento para a matéria: ${subject}.
       Foque em conceitos-chave, prazos legais, mnemônicos e pegadinhas recorrentes em concursos policiais.`,
       config: {
