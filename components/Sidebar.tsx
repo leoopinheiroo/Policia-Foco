@@ -9,6 +9,7 @@ interface SidebarProps {
   setIsOpen: (val: boolean) => void;
   onLogout: () => void;
   userType?: string;
+  userName?: string;
 }
 
 const MenuItems: { id: ViewState; label: string; icon: string }[] = [
@@ -27,7 +28,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen, 
   setIsOpen, 
   onLogout,
-  userType = 'COMANDANTE' 
+  userType = 'ELITE',
+  userName = 'Operador'
 }) => {
   const isGuest = userType === 'VISITANTE';
 
@@ -85,10 +87,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="p-4 border-t border-slate-800 space-y-2">
           <div className="bg-slate-800 rounded-lg p-3 flex items-center gap-3">
             <div className={`w-8 h-8 rounded-full bg-gradient-to-tr ${isGuest ? 'from-blue-400 to-indigo-500' : 'from-yellow-400 to-orange-500'} flex items-center justify-center text-slate-900 font-bold text-xs`}>
-              {isGuest ? 'VT' : 'JD'}
+              {userName.substring(0, 2).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{isGuest ? 'Visitante' : 'João Da Silva'}</p>
+              <p className="text-sm font-medium text-white truncate">{userName}</p>
               <p className={`text-[10px] ${isGuest ? 'text-blue-400/70' : 'text-yellow-500/70'} font-black uppercase tracking-widest`}>
                 Plano {userType}
               </p>

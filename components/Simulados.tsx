@@ -49,23 +49,25 @@ export const Simulados: React.FC = () => {
         if (countForThisSubject > 0) {
           setLoadingProgress({ current: sub.name, count: countForThisSubject });
           const subQuestions = await generateQuestionsForSubject(sub.name, countForThisSubject);
-          pool = [...pool, ...subQuestions];
+          if (subQuestions && subQuestions.length > 0) {
+            pool = [...pool, ...subQuestions];
+          }
         }
       }
 
       // Embaralhar o pool final para não ficarem todas as matérias juntas
       pool.sort(() => Math.random() - 0.5);
 
-      if (pool.length === 0) throw new Error("Falha na geração");
+      if (pool.length === 0) throw new Error("Falha na geração: Nenhuma questão foi retornada.");
 
       setQuestions(pool);
       setAnswers({});
       setCurrentQIndex(0);
       setState('RUNNING');
       window.scrollTo(0, 0);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Erro ao conectar com o banco de questões. Verifique sua conexão e tente novamente.");
+      alert(error?.message || "Erro ao conectar com o banco de questões. Verifique sua conexão e tente novamente.");
       setState('CONFIG');
     }
   };

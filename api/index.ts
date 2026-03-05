@@ -231,6 +231,46 @@ async function startServer() {
     }
   });
 
+  app.get('/api/user/history', (req, res) => {
+    try {
+      const email = req.query.email as string;
+      if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
+      
+      const users = getUsers();
+      const user = users[email];
+      
+      if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+      
+      res.json({ history: user.history || { answeredQuestions: {} } });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao buscar histórico.' });
+    }
+  });
+
+  app.post('/api/user/history/save', (req, res) => {
+    try {
+      const { email, questionId, result } = req.body;
+      if (!email || !questionId || !result) return res.status(400).json({ error: 'Dados incompletos.' });
+      
+      const users = getUsers();
+      const user = users[email];
+      
+      if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+      
+      if (!user.history) user.history = { answeredQuestions: {} };
+      
+      user.history.answeredQuestions[questionId] = {
+        ...result,
+        timestamp: Date.now()
+      };
+      
+      saveUsers(users);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao salvar histórico.' });
+    }
+  });
+
   app.post('/api/create-checkout-session', async (req, res) => {
     try {
       const { plan, email } = req.body;

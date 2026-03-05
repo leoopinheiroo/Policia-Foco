@@ -27,9 +27,19 @@ export const EssayCorrection: React.FC = () => {
         return;
     }
     setIsCorrecting(true);
-    const result = await correctEssayWithAi(essay, theme);
-    setFeedback(result);
-    setIsCorrecting(false);
+    try {
+      const result = await correctEssayWithAi(essay, theme);
+      if (result) {
+        setFeedback(result);
+      } else {
+        alert("Não foi possível obter a correção. Tente novamente.");
+      }
+    } catch (error) {
+      console.error("Erro na correção:", error);
+      alert("Erro ao processar a redação. Verifique sua conexão ou tente um texto mais curto.");
+    } finally {
+      setIsCorrecting(false);
+    }
   };
 
   return (

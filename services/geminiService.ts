@@ -1,6 +1,68 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { Question, EssayFeedback, Flashcard } from "../types";
+/**
+ * Fetches a batch of questions based on filters.
+ */
+export const fetchFilteredQuestions = async (
+  filters: QuestionFilters,
+  count: number = 10
+): Promise<Question[]> => {
+  return withRetry(async () => {
+    const filterDesc = [
+      filters.materia ? `Matéria: ${filters.materia}` : '',
+      filters.assunto ? `Assunto: ${filters.assunto}` : '',
+      filters.banca ? `Banca: ${filters.banca}` : 'Banca: CEBRASPE ou FGV',
+      filters.ano ? `Ano: ${filters.ano}` : '',
+      filters.tipo ? `Tipo: ${filters.tipo}` : ''
+    ].filter(Boolean).join(', ');
+
+    const response = await getAi().models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Gerar um lote de ${count} questões técnicas inéditas com os seguintes filtros: ${filterDesc}.
+      Nível: Difícil (estilo carreiras policiais).
+      
+      Cada questão deve seguir a estrutura de comentário:
+      [RESUMO DA CORRETA]
+      [POR QUE AS OUTRAS ESTÃO ERRADAS?]
+      [MNEMÔNICO / DICA DE OURO]
+      [CUIDADO COM A PEGADINHA!]`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              banca: { type: Type.STRING },
+              ano: { type: Type.INTEGER },
+              orgao: { type: Type.STRING },
+              cargo: { type: Type.STRING },
+              materia: { type: Type.STRING },
+              assunto: { type: Type.STRING },
+              textoBase: { type: Type.STRING },
+              texto: { type: Type.STRING },
+              tipo: { type: Type.STRING, enum: ["CERTO_ERRADO", "MULTIPLA_ESCOLHA"] },
+              alternativas: { type: Type.ARRAY, items: { type: Type.STRING } },
+              correta: { type: Type.INTEGER },
+              comentario: { type: Type.STRING }
+            },
+            required: ["banca", "ano", "orgao", "cargo", "materia", "assunto", "texto", "tipo", "alternativas", "correta", "comentario"]
+          }
+        }
+      }
+    });
+
+    const items = JSON.parse(cleanJson(response.text));
+    return items.map((q: any) => ({
+      ...q,
+      id: `filt-${Date.now()}-${Math.random()}`,
+      origem: 'IA',
+      isAiGenerated: true
+    }));
+  });
+};
+
+import { Question, EssayFeedback, Flashcard, UserHistory, QuestionFilters } from "../types";
 
 // Lazy initialization of the Gemini client
 let aiInstance: GoogleGenAI | null = null;

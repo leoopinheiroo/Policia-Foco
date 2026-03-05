@@ -76,6 +76,24 @@ export interface Flashcard {
   difficultyFactor: number;
 }
 
+export interface UserHistory {
+  answeredQuestions: Record<string, {
+    correct: boolean;
+    answerIndex: number;
+    timestamp: number;
+    question: Question; // Store the question for later review
+  }>;
+}
+
+export interface QuestionFilters {
+  materia?: string;
+  assunto?: string;
+  banca?: string;
+  ano?: number;
+  status?: 'TODAS' | 'RESOLVIDAS' | 'NAO_RESOLVIDAS' | 'ACERTEI' | 'ERREI';
+  tipo?: QuestionType;
+}
+
 export interface EssayFeedback {
   score: number;
   comments: string;

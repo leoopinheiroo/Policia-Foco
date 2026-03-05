@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { ViewState } from './types';
 import { SUBJECTS, MOCK_QUESTIONS } from './constants';
 import { QuestionRunner } from './components/QuestionRunner';
+import { QuestionFilter } from './components/QuestionFilter';
 import { EssayCorrection } from './components/EssayCorrection';
 import { Dashboard } from './components/Dashboard';
 import { Simulados } from './components/Simulados';
@@ -18,6 +19,7 @@ const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('PF_LOGGED') === 'true');
   const [isPaid, setIsPaid] = useState(false);
   const [userEmail, setUserEmail] = useState(() => localStorage.getItem('PF_USER_EMAIL') || '');
+  const [userName, setUserName] = useState(() => localStorage.getItem('PF_USER_NAME') || 'Operador');
   const [selectedPlan, setSelectedPlan] = useState<'MONTHLY' | 'ANNUAL'>('ANNUAL');
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   
@@ -25,6 +27,18 @@ const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [filteredQuestions, setFilteredQuestions] = useState<any[]>([]);
+  const [userHistory, setUserHistory] = useState<any>(null);
+
+  const fetchUserHistory = async (email: string) => {
+    try {
+      const res = await fetch(`/api/user/history?email=${encodeURIComponent(email)}`);
+      const data = await res.json();
+      setUserHistory(data.history);
+    } catch (e) {
+      console.error("Erro ao buscar histórico:", e);
+    }
+  };
 
   const checkUserStatus = async (email: string) => {
     if (!email) {
@@ -36,6 +50,7 @@ const App: React.FC = () => {
       const data = await response.json();
       if (data.status === 'active') {
         setIsPaid(true);
+        if (data.name) setUserName(data.name);
         // Só redireciona para a HOME se o usuário estiver em telas de transição
         if (currentView === 'LOGIN' || currentView === 'SIGNUP' || currentView === 'CHECKOUT') {
           setCurrentView('HOME');
@@ -62,6 +77,7 @@ const App: React.FC = () => {
 
     if (isLoggedIn && userEmail) {
       checkUserStatus(userEmail);
+      fetchUserHistory(userEmail);
     } else {
       setIsCheckingStatus(false);
     }
@@ -77,7 +93,8 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('PF_LOGGED', isLoggedIn.toString());
     localStorage.setItem('PF_USER_EMAIL', userEmail);
-  }, [isLoggedIn, userEmail]);
+    localStorage.setItem('PF_USER_NAME', userName);
+  }, [isLoggedIn, userEmail, userName]);
 
   const activeSubject = useMemo(() => 
     SUBJECTS.find(s => s.id === selectedSubjectId), 
@@ -92,8 +109,22 @@ const App: React.FC = () => {
 
   const handleTopicClick = (topic: string) => {
     setSelectedTopic(topic);
+    setFilteredQuestions([]); // Clear filtered questions when going to a specific topic
     setCurrentView('QUESTIONS');
     window.scrollTo(0, 0);
+  };
+
+  const handleFilterApply = async (filters: any) => {
+    setCurrentView('QUESTIONS');
+    setSelectedTopic('Filtro Personalizado');
+    setSelectedSubjectId(null);
+    
+    // Here we would call fetchFilteredQuestions from geminiService
+    // But since it's an async call that returns questions, we should handle it in a loading state
+    // For now, let's just pass the filters to QuestionRunner or fetch them here
+    const { fetchFilteredQuestions } = await import('./services/geminiService');
+    const questions = await fetchFilteredQuestions(filters);
+    setFilteredQuestions(questions);
   };
 
   const handleLogout = () => {
@@ -104,11 +135,13 @@ const App: React.FC = () => {
     setCurrentView('LANDING');
   };
 
-  const handleAuthSuccess = (email: string) => {
+  const handleAuthSuccess = (email: string, name?: string) => {
     setIsLoggedIn(true);
     setUserEmail(email);
+    if (name) setUserName(name);
     localStorage.setItem('PF_LOGGED', 'true');
     localStorage.setItem('PF_USER_EMAIL', email);
+    if (name) localStorage.setItem('PF_USER_NAME', name);
     
     // Ao logar ou cadastrar, verificamos o status e aí sim decidimos se vai para Checkout ou Home
     fetch(`/api/user/status?email=${encodeURIComponent(email)}`)
@@ -116,6 +149,7 @@ const App: React.FC = () => {
       .then(data => {
         if (data.status === 'active') {
           setIsPaid(true);
+          if (data.name) setUserName(data.name);
           setCurrentView('HOME');
         } else {
           setIsPaid(false);
@@ -197,6 +231,8 @@ const App: React.FC = () => {
                <h2 className="text-5xl font-black text-slate-900 tracking-tighter">Catálogo Completo</h2>
                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] mt-2">Todas as disciplinas obrigatórias para concursos policiais</p>
             </div>
+
+            <QuestionFilter onFilter={handleFilterApply} />
             
             <div className="space-y-16">
                <SubjectSection title="Básicas e Transversais" items={SUBJECTS.slice(0, 6)} onSubjectClick={handleSubjectClick} />
@@ -244,13 +280,17 @@ const App: React.FC = () => {
         );
 
       case 'QUESTIONS':
-        if (!activeSubject || !selectedTopic) return null;
+        if (!selectedTopic) return null;
         return (
           <QuestionRunner 
-            initialQuestions={MOCK_QUESTIONS}
-            subject={activeSubject.name}
+            initialQuestions={filteredQuestions.length > 0 ? filteredQuestions : MOCK_QUESTIONS}
+            subject={activeSubject?.name || 'Filtro'}
             topic={selectedTopic}
-            onBack={() => setCurrentView('TOPICS')}
+            userEmail={userEmail}
+            onBack={() => {
+              setCurrentView(activeSubject ? 'TOPICS' : 'SUBJECTS');
+              setFilteredQuestions([]);
+            }}
           />
         );
 
@@ -285,7 +325,8 @@ const App: React.FC = () => {
           isOpen={sidebarOpen}
           setIsOpen={setSidebarOpen}
           onLogout={handleLogout}
-          userType="COMANDANTE"
+          userType={userEmail === 'leonardo.pinheiros@hotmail.com' ? 'ELITE' : 'RECRUTA'}
+          userName={userName}
         />
         <main className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all">
           <div className="md:hidden bg-slate-950 text-white p-6 flex items-center justify-between sticky top-0 z-40 shadow-2xl border-b border-white/5">

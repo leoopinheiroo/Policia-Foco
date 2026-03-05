@@ -7,6 +7,7 @@ interface QuestionRunnerProps {
   initialQuestions: Question[];
   subject: string;
   topic: string;
+  userEmail: string;
   onBack: () => void;
 }
 
@@ -64,6 +65,7 @@ const StructuredCommentary: React.FC<{ text: string }> = ({ text }) => {
 export const QuestionRunner: React.FC<QuestionRunnerProps> = ({ 
   subject, 
   topic, 
+  userEmail,
   onBack 
 }) => {
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -73,6 +75,32 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
   const [isPrefetching, setIsPrefetching] = useState(false);
 
   const prefetchingRef = useRef(false);
+
+  const handleAnswer = async (idx: number) => {
+    if (selectedOption !== null) return;
+    setSelectedOption(idx);
+    
+    const currentQ = questions[currentIndex];
+    const isCorrect = idx === currentQ.correta;
+
+    try {
+      await fetch('/api/user/history/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userEmail,
+          questionId: currentQ.id,
+          result: {
+            correct: isCorrect,
+            answerIndex: idx,
+            question: currentQ
+          }
+        })
+      });
+    } catch (e) {
+      console.error("Erro ao salvar histórico:", e);
+    }
+  };
 
   const prefetchNext = useCallback(async () => {
     if (prefetchingRef.current) return;
@@ -98,15 +126,26 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
   useEffect(() => {
     const init = async () => {
       setIsInitialLoading(true);
-      setQuestions([]);
-      setCurrentIndex(0);
-      setSelectedOption(null);
-      const q1 = await fetchSinglePoliceQuestion(subject, topic);
-      if (q1) {
-        setQuestions([q1]);
-        setIsInitialLoading(false); 
-        await prefetchNext();
-        await prefetchNext();
+      try {
+        setQuestions([]);
+        setCurrentIndex(0);
+        setSelectedOption(null);
+        const q1 = await fetchSinglePoliceQuestion(subject, topic);
+        if (q1) {
+          setQuestions([q1]);
+          // Prefetch in background
+          prefetchNext();
+          prefetchNext();
+        } else {
+          alert("Não foi possível carregar a questão inicial. Tente novamente.");
+          onBack();
+        }
+      } catch (error) {
+        console.error("Erro no init:", error);
+        alert("Erro ao carregar questões.");
+        onBack();
+      } finally {
+        setIsInitialLoading(false);
       }
     };
     init();
@@ -212,7 +251,7 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
               }
 
               return (
-                <button key={idx} onClick={() => setSelectedOption(idx)} disabled={hasAnswered} className={btnClass}>
+                <button key={idx} onClick={() => handleAnswer(idx)} disabled={hasAnswered} className={btnClass}>
                   <span className={`w-14 h-14 rounded-[1.2rem] flex items-center justify-center font-black shrink-0 transition-all text-2xl
                     ${hasAnswered && isCorrect ? 'bg-green-600 text-white' : 
                       hasAnswered && isSelected ? 'bg-red-600 text-white' : 

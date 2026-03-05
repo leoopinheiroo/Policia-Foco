@@ -70,12 +70,12 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
 
   const planInfo = {
     MONTHLY: {
-      name: "Plano Aspirante (Mensal)",
-      price: 29.90,
+      name: "Recruta (Mensal)",
+      price: 39.90,
       label: "Mensal"
     },
     ANNUAL: {
-      name: "Plano Comandante (Anual)",
+      name: "Elite (Anual)",
       price: 297.00,
       label: "Anual"
     }
@@ -166,8 +166,8 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                       `}
                    >
                       <span className="text-[10px] font-black uppercase tracking-widest mb-2 opacity-60">Mensal</span>
-                      <span className="text-2xl font-black mb-1">Aspirante</span>
-                      <span className="font-bold">R$ 29,90 /mês</span>
+                      <span className="text-2xl font-black mb-1">Recruta</span>
+                      <span className="font-bold">R$ 39,90 /mês</span>
                       {selectedPlan === 'MONTHLY' && <div className="absolute top-4 right-4 text-yellow-500 text-xl">✓</div>}
                    </button>
                    <button 
@@ -177,9 +177,9 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                         ${selectedPlan === 'ANNUAL' ? 'border-slate-950 bg-slate-950 text-white shadow-xl' : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200'}
                       `}
                    >
-                      <div className="absolute top-0 right-0 bg-yellow-500 text-slate-950 px-3 py-1 text-[8px] font-black uppercase">Melhor Valor</div>
+                      <div className="absolute top-0 right-0 bg-yellow-500 text-slate-950 px-3 py-1 text-[8px] font-black uppercase">Economize 40%</div>
                       <span className="text-[10px] font-black uppercase tracking-widest mb-2 opacity-60">Anual</span>
-                      <span className="text-2xl font-black mb-1">Comandante</span>
+                      <span className="text-2xl font-black mb-1">Elite</span>
                       <span className="font-bold">R$ 297,00 /ano</span>
                       {selectedPlan === 'ANNUAL' && <div className="absolute top-4 right-4 text-yellow-500 text-xl">✓</div>}
                    </button>
