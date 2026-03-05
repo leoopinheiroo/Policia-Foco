@@ -85,7 +85,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     // Bloqueio de acesso para não pagantes
-    if (!isCheckingStatus && isLoggedIn && !isPaid && !['CHECKOUT', 'LOGIN', 'SIGNUP', 'LANDING'].includes(currentView)) {
+    if (!isCheckingStatus && isLoggedIn && !isPaid && !['CHECKOUT', 'LOGIN', 'SIGNUP', 'LANDING', 'FORGOT_PASSWORD'].includes(currentView)) {
       setCurrentView('CHECKOUT');
     }
   }, [isLoggedIn, isPaid, currentView, isCheckingStatus]);
