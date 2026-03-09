@@ -14,6 +14,13 @@ if (!supabaseUrl) {
 
 // Use service key for backend operations to bypass RLS if needed
 // We initialize lazily or provide a dummy if missing to avoid crash at startup
-export const supabase = supabaseUrl 
-  ? createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey)
-  : null as any;
+let supabaseClient: any = null;
+try {
+  if (supabaseUrl) {
+    supabaseClient = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey);
+  }
+} catch (e) {
+  console.error('[Supabase] Failed to initialize client:', e);
+}
+
+export const supabase = supabaseClient;

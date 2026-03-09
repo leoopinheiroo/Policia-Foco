@@ -8,8 +8,9 @@ import { supabase } from './supabase';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function startServer() {
-  const app = express();
-  const PORT = 3000;
+  try {
+    const app = express();
+    const PORT = 3000;
 
   // Middleware para verificar se o Supabase está configurado
   const checkSupabase = (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -594,14 +595,22 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== 'production' && process.env.VERCEL !== '1') {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
+  const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+  
+  if (!isProd) {
+    try {
+      console.log('[Server] Starting in development mode with Vite middleware...');
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } catch (e) {
+      console.error('[Server] Failed to load Vite middleware:', e);
+    }
   } else {
+    console.log('[Server] Starting in production mode...');
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
@@ -609,13 +618,25 @@ async function startServer() {
     });
   }
 
-  if (process.env.NODE_ENV !== 'production' && process.env.VERCEL !== '1') {
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  }
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on http://0.0.0.0:${PORT} (NODE_ENV: ${process.env.NODE_ENV})`);
+  });
 
   return app;
+  } catch (err: any) {
+    console.error('[Server] CRITICAL STARTUP ERROR:', err);
+    // Create a minimal app to respond with the error
+    const app = express();
+    app.all('*', (req, res) => {
+      res.status(500).json({ 
+        error: 'O servidor falhou ao iniciar.',
+        details: err.message,
+        stack: err.stack
+      });
+    });
+    app.listen(3000, '0.0.0.0');
+    return app;
+  }
 }
 
 export const app = await startServer();
