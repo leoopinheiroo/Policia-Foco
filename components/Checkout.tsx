@@ -71,7 +71,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
   const planInfo = {
     MONTHLY: {
       name: "Recruta (Mensal)",
-      price: 1.00,
+      price: 29.90,
       label: "Mensal"
     },
     ANNUAL: {
@@ -167,7 +167,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                    >
                       <span className="text-[10px] font-black uppercase tracking-widest mb-2 opacity-60">Mensal</span>
                       <span className="text-2xl font-black mb-1">Recruta</span>
-                      <span className="font-bold">R$ 1,00 /mês</span>
+                      <span className="font-bold">R$ 29,90 /mês</span>
                       {selectedPlan === 'MONTHLY' && <div className="absolute top-4 right-4 text-yellow-500 text-xl">✓</div>}
                    </button>
                    <button 

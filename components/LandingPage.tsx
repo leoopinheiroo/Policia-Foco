@@ -100,7 +100,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
                <PlanCard 
                   name="Recruta" 
-                  price="1,00" 
+                  price="29,90" 
                   period="Mensal" 
                   features={["Questões Ilimitadas", "IA de Sugestões", "Vade Mecum Digital", "Suporte via Chat"]} 
                   onSelect={() => onStart('MONTHLY')}
