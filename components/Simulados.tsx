@@ -6,7 +6,11 @@ import { generateQuestionsForSubject } from '../services/geminiService';
 
 type SimuladoState = 'CONFIG' | 'LOADING' | 'RUNNING' | 'RESULT';
 
-export const Simulados: React.FC = () => {
+interface SimuladosProps {
+  userEmail: string;
+}
+
+export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
   const [state, setState] = useState<SimuladoState>('CONFIG');
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [examLength, setExamLength] = useState<60 | 120>(60);
@@ -76,21 +80,43 @@ export const Simulados: React.FC = () => {
     setAnswers(prev => ({ ...prev, [questions[currentQIndex].id]: optionIdx }));
   };
 
-  const finishSimulado = () => {
+  const finishSimulado = async () => {
     let correct = 0;
     questions.forEach(q => {
       if (answers[q.id] === q.correta) correct++;
     });
 
-    setResult({
+    const percentage = Math.round((correct / questions.length) * 100);
+    const subjectsNames = SUBJECTS.filter(s => selectedSubjects.includes(s.id)).map(s => s.name);
+
+    const newResult: SimuladoResult = {
       totalQuestions: questions.length,
       correctCount: correct,
       answers: answers,
       questions: questions,
       date: new Date().toLocaleDateString()
-    });
+    };
+
+    setResult(newResult);
     setState('RESULT');
     window.scrollTo(0, 0);
+
+    // Salvar no Supabase
+    try {
+      await fetch('/api/user/simulados/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userEmail,
+          score_percentage: percentage,
+          correct_count: correct,
+          total_questions: questions.length,
+          subjects: subjectsNames
+        })
+      });
+    } catch (e) {
+      console.error("Erro ao salvar resultado do simulado:", e);
+    }
   };
 
   if (state === 'CONFIG') {

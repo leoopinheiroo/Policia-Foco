@@ -10,6 +10,7 @@ import { Dashboard } from './components/Dashboard';
 import { Simulados } from './components/Simulados';
 import { Flashcards } from './components/Flashcards';
 import { VadeMecum } from './components/VadeMecum';
+import { GeniusIA } from './components/GeniusIA';
 import { Auth } from './components/Auth';
 import { LandingPage } from './components/LandingPage';
 import { Checkout } from './components/Checkout';
@@ -27,6 +28,7 @@ const App: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [intensiveSubject, setIntensiveSubject] = useState<string | null>(null);
   const [filteredQuestions, setFilteredQuestions] = useState<any[]>([]);
   const [userHistory, setUserHistory] = useState<any>(null);
 
@@ -294,10 +296,35 @@ const App: React.FC = () => {
           />
         );
 
-      case 'SIMULADOS': return <Simulados />;
-      case 'REDACAO': return <EssayCorrection />;
+      case 'GENIUS_IA':
+        return (
+          <GeniusIA 
+            userHistory={userHistory} 
+            onStartIntensive={async (subject, topic) => {
+              const { fetchFilteredQuestions } = await import('./services/geminiService');
+              const questions = await fetchFilteredQuestions({ 
+                materia: subject,
+                assunto: topic
+              });
+              // Pegamos apenas 20 se houver mais
+              setFilteredQuestions(questions.slice(0, 20));
+              setSelectedTopic(topic ? `Intensivo: ${topic}` : `Intensivo: ${subject}`);
+              setSelectedSubjectId(null);
+              setCurrentView('QUESTIONS');
+            }}
+            onReviewQuestion={(question) => {
+              setFilteredQuestions([question]);
+              setSelectedTopic(`Revisão de Erro`);
+              setSelectedSubjectId(null);
+              setCurrentView('QUESTIONS');
+            }}
+          />
+        );
+
+      case 'SIMULADOS': return <Simulados userEmail={userEmail} />;
+      case 'REDACAO': return <EssayCorrection userEmail={userEmail} />;
       case 'DASHBOARD': return <Dashboard />;
-      case 'FLASHCARDS': return <Flashcards />;
+      case 'FLASHCARDS': return <Flashcards userEmail={userEmail} />;
       case 'VADE_MECUM': return <VadeMecum />;
       default: return <LandingPage onStart={handleStart} onLogin={() => setCurrentView('LOGIN')} />;
     }

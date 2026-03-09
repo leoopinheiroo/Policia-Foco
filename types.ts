@@ -21,6 +21,7 @@ export type ViewState =
   | 'REDACAO' 
   | 'FLASHCARDS' 
   | 'DASHBOARD' 
+  | 'GENIUS_IA'
   | 'VADE_MECUM';
 
 export interface Subject {
@@ -81,6 +82,7 @@ export interface UserHistory {
     correct: boolean;
     answerIndex: number;
     timestamp: number;
+    responseTime: number; // em milissegundos
     question: Question; // Store the question for later review
   }>;
 }

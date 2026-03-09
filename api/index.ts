@@ -2,39 +2,10 @@ import express from 'express';
 import Stripe from 'stripe';
 import cors from 'cors';
 import path from 'path';
-import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { supabase } from './supabase.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Usamos process.cwd() para garantir que o caminho seja a raiz do projeto na Vercel
-const USERS_FILE = path.join(process.cwd(), 'users.json');
-
-// Helper to manage mock database
-let memoryUsers: any = null;
-
-const getUsers = () => {
-  if (memoryUsers) return memoryUsers;
-  try {
-    if (!fs.existsSync(USERS_FILE)) {
-      return {};
-    }
-    const content = fs.readFileSync(USERS_FILE, 'utf-8');
-    memoryUsers = content ? JSON.parse(content) : {};
-    return memoryUsers;
-  } catch (e) {
-    console.error('Error reading users file, using memory:', e);
-    return memoryUsers || {};
-  }
-};
-
-const saveUsers = (users: any) => {
-  memoryUsers = users;
-  try {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
-  } catch (e) {
-    console.warn('Could not save to disk (normal on Vercel), keeping in memory.');
-  }
-};
 
 async function startServer() {
   const app = express();
@@ -100,36 +71,48 @@ async function startServer() {
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    const users = getUsers();
+    const { data: users, error: fetchError } = await supabase
+      .from('users')
+      .select('*');
+    
+    if (fetchError) {
+      console.error('Error fetching users for webhook:', fetchError);
+      return res.status(500).send('Database error');
+    }
 
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
         const email = session.customer_email || session.customer_details?.email;
-        if (email && users[email]) {
-          users[email].subscription_status = 'active';
-          users[email].stripe_customer_id = session.customer as string;
-          users[email].stripe_subscription_id = session.subscription as string;
-          saveUsers(users);
+        if (email) {
+          await supabase
+            .from('users')
+            .update({
+              subscription_status: 'active',
+              stripe_customer_id: session.customer as string,
+              stripe_subscription_id: session.subscription as string
+            })
+            .eq('email', email);
         }
         break;
       }
       case 'invoice.paid': {
         const invoice = event.data.object as Stripe.Invoice;
         const email = invoice.customer_email;
-        if (email && users[email]) {
-          users[email].subscription_status = 'active';
-          saveUsers(users);
+        if (email) {
+          await supabase
+            .from('users')
+            .update({ subscription_status: 'active' })
+            .eq('email', email);
         }
         break;
       }
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
-        const email = Object.keys(users).find(key => users[key].stripe_customer_id === subscription.customer);
-        if (email) {
-          users[email].subscription_status = 'canceled';
-          saveUsers(users);
-        }
+        await supabase
+          .from('users')
+          .update({ subscription_status: 'canceled' })
+          .eq('stripe_customer_id', subscription.customer);
         break;
       }
     }
@@ -140,75 +123,121 @@ async function startServer() {
   app.use(express.json());
 
   // Auth Routes
-  app.post('/api/auth/register', (req, res) => {
+  app.post('/api/auth/register', async (req, res) => {
     try {
       const { email, password, name } = req.body;
       if (!email || !password) return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
 
-      const users = getUsers();
-      if (users[email]) return res.status(400).json({ error: 'Operador já cadastrado.' });
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('email')
+        .eq('email', email)
+        .single();
 
-      users[email] = { email, password, name, subscription_status: 'pending', created_at: new Date().toISOString() };
-      saveUsers(users);
+      if (existingUser) return res.status(400).json({ error: 'Operador já cadastrado.' });
+
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert([{ 
+          email, 
+          password, 
+          name, 
+          subscription_status: 'pending', 
+          created_at: new Date().toISOString(),
+          history: { answeredQuestions: {} }
+        }]);
+
+      if (insertError) throw insertError;
+
       res.json({ success: true, email, status: 'pending' });
     } catch (error) {
+      console.error('Register error:', error);
       res.status(500).json({ error: 'Erro no servidor ao registrar.' });
     }
   });
 
-  app.post('/api/auth/login', (req, res) => {
+  app.post('/api/auth/login', async (req, res) => {
     try {
       const { email: rawEmail, password: rawPassword } = req.body;
       const email = rawEmail?.trim().toLowerCase();
       const password = rawPassword?.trim();
-      const users = getUsers();
 
       // Privilégio de Desenvolvedor
       if (email === 'leonardo.pinheiros@hotmail.com' && password === 'leo5366.Leo') {
-        if (!users[email]) {
-          users[email] = {
-            email,
-            password,
-            name: 'Leonardo (Dev)',
-            subscription_status: 'active',
-            created_at: new Date().toISOString()
-          };
-          saveUsers(users);
+        const { data: devUser } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', email)
+          .single();
+
+        if (!devUser) {
+          await supabase
+            .from('users')
+            .insert([{
+              email,
+              password,
+              name: 'Leonardo (Dev)',
+              subscription_status: 'active',
+              created_at: new Date().toISOString(),
+              history: { answeredQuestions: {} }
+            }]);
         }
         return res.json({ success: true, email, status: 'active', name: 'Leonardo (Dev)' });
       }
 
-      const user = users[email];
-      if (!user || user.password !== password) return res.status(401).json({ error: 'Credenciais inválidas.' });
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (error || !user || user.password !== password) {
+        return res.status(401).json({ error: 'Credenciais inválidas.' });
+      }
 
       res.json({ success: true, email: user.email, status: user.subscription_status, name: user.name });
     } catch (error) {
+      console.error('Login error:', error);
       res.status(500).json({ error: 'Erro no servidor ao logar.' });
     }
   });
 
-  app.post('/api/auth/forgot-password', (req, res) => {
+  app.post('/api/auth/forgot-password', async (req, res) => {
     try {
       const { email: rawEmail } = req.body;
       const email = rawEmail?.trim().toLowerCase();
       if (!email) return res.status(400).json({ error: 'Email é obrigatório.' });
 
-      const users = getUsers();
-      if (!users[email]) {
-        // Por segurança, não confirmamos se o email existe ou não, mas aqui como é demo vamos validar
+      const { data: user } = await supabase
+        .from('users')
+        .select('email')
+        .eq('email', email)
+        .single();
+
+      if (!user) {
         return res.status(404).json({ error: 'Operador não encontrado em nossa base.' });
       }
 
       console.log(`[AUTH] Link de recuperação solicitado para: ${email}`);
-      // Aqui integraria com SendGrid/Nodemailer
       
-      res.json({ success: true, message: 'Link enviado.' });
+      // Simulação de envio de e-mail com detalhes para o log
+      const resetToken = Math.random().toString(36).substring(2, 15);
+      const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}&email=${email}`;
+      
+      console.log(`[EMAIL SIMULADO] Destinatário: ${email}`);
+      console.log(`[EMAIL SIMULADO] Assunto: Recuperação de Senha - GeniusAI`);
+      console.log(`[EMAIL SIMULADO] Mensagem: Clique no link para redefinir sua senha: ${resetLink}`);
+      
+      res.json({ 
+        success: true, 
+        message: 'Um link de recuperação foi enviado para o seu e-mail. Verifique sua caixa de entrada e spam.' 
+      });
     } catch (error) {
       res.status(500).json({ error: 'Erro ao processar solicitação.' });
     }
   });
 
-  app.get('/api/user/status', (req, res) => {
+  app.get('/api/user/status', async (req, res) => {
     try {
       const email = req.query.email as string;
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
@@ -218,8 +247,11 @@ async function startServer() {
         return res.json({ status: 'active' });
       }
 
-      const users = getUsers();
-      const user = users[email];
+      const { data: user } = await supabase
+        .from('users')
+        .select('subscription_status')
+        .eq('email', email)
+        .single();
       
       if (!user) {
         return res.json({ status: 'pending' });
@@ -231,15 +263,18 @@ async function startServer() {
     }
   });
 
-  app.get('/api/user/history', (req, res) => {
+  app.get('/api/user/history', async (req, res) => {
     try {
       const email = req.query.email as string;
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
       
-      const users = getUsers();
-      const user = users[email];
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('history')
+        .eq('email', email)
+        .single();
       
-      if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+      if (error || !user) return res.status(404).json({ error: 'Usuário não encontrado.' });
       
       res.json({ history: user.history || { answeredQuestions: {} } });
     } catch (error) {
@@ -247,27 +282,168 @@ async function startServer() {
     }
   });
 
-  app.post('/api/user/history/save', (req, res) => {
+  app.post('/api/user/history/save', async (req, res) => {
     try {
       const { email, questionId, result } = req.body;
       if (!email || !questionId || !result) return res.status(400).json({ error: 'Dados incompletos.' });
       
-      const users = getUsers();
-      const user = users[email];
+      const { data: user, error: fetchError } = await supabase
+        .from('users')
+        .select('history')
+        .eq('email', email)
+        .single();
       
-      if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+      if (fetchError || !user) return res.status(404).json({ error: 'Usuário não encontrado.' });
       
-      if (!user.history) user.history = { answeredQuestions: {} };
-      
-      user.history.answeredQuestions[questionId] = {
+      const history = user.history || { answeredQuestions: {} };
+      history.answeredQuestions[questionId] = {
         ...result,
         timestamp: Date.now()
       };
       
-      saveUsers(users);
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ history })
+        .eq('email', email);
+
+      if (updateError) throw updateError;
+
       res.json({ success: true });
     } catch (error) {
+      console.error('Save history error:', error);
       res.status(500).json({ error: 'Erro ao salvar histórico.' });
+    }
+  });
+
+  // Simulados History
+  app.post('/api/user/simulados/save', async (req, res) => {
+    try {
+      const { email, score_percentage, correct_count, total_questions, subjects } = req.body;
+      if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
+
+      const { error } = await supabase
+        .from('simulados_history')
+        .insert([{
+          user_email: email,
+          score_percentage,
+          correct_count,
+          total_questions,
+          subjects,
+          created_at: new Date().toISOString()
+        }]);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Save simulado error:', error);
+      res.status(500).json({ error: 'Erro ao salvar simulado.' });
+    }
+  });
+
+  app.get('/api/user/simulados/history', async (req, res) => {
+    try {
+      const email = req.query.email as string;
+      if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
+
+      const { data, error } = await supabase
+        .from('simulados_history')
+        .select('*')
+        .eq('user_email', email)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      res.json({ history: data });
+    } catch (error) {
+      console.error('Fetch simulados error:', error);
+      res.status(500).json({ error: 'Erro ao buscar histórico de simulados.' });
+    }
+  });
+
+  // Flashcards
+  app.post('/api/user/flashcards/save', async (req, res) => {
+    try {
+      const { email, materia, assunto, front, back, status } = req.body;
+      if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
+
+      const { error } = await supabase
+        .from('user_flashcards')
+        .insert([{
+          user_email: email,
+          materia,
+          assunto,
+          front,
+          back,
+          status: status || 'new',
+          created_at: new Date().toISOString()
+        }]);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Save flashcard error:', error);
+      res.status(500).json({ error: 'Erro ao salvar flashcard.' });
+    }
+  });
+
+  app.get('/api/user/flashcards/list', async (req, res) => {
+    try {
+      const email = req.query.email as string;
+      if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
+
+      const { data, error } = await supabase
+        .from('user_flashcards')
+        .select('*')
+        .eq('user_email', email);
+
+      if (error) throw error;
+      res.json({ flashcards: data });
+    } catch (error) {
+      console.error('Fetch flashcards error:', error);
+      res.status(500).json({ error: 'Erro ao buscar flashcards.' });
+    }
+  });
+
+  // Essays
+  app.post('/api/user/essays/save', async (req, res) => {
+    try {
+      const { email, theme, content, correction_json, final_score } = req.body;
+      if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
+
+      const { error } = await supabase
+        .from('essays_history')
+        .insert([{
+          user_email: email,
+          theme,
+          content,
+          correction_json,
+          final_score,
+          created_at: new Date().toISOString()
+        }]);
+
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Save essay error:', error);
+      res.status(500).json({ error: 'Erro ao salvar redação.' });
+    }
+  });
+
+  app.get('/api/user/essays/history', async (req, res) => {
+    try {
+      const email = req.query.email as string;
+      if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
+
+      const { data, error } = await supabase
+        .from('essays_history')
+        .select('*')
+        .eq('user_email', email)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      res.json({ history: data });
+    } catch (error) {
+      console.error('Fetch essays error:', error);
+      res.status(500).json({ error: 'Erro ao buscar histórico de redações.' });
     }
   });
 
@@ -276,17 +452,23 @@ async function startServer() {
       const { plan, email } = req.body;
       if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
       
-      const users = getUsers();
+      const { data: user } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
       
       // Auto-create user if missing (common in serverless)
-      if (!users[email]) {
-        users[email] = {
-          email,
-          subscription_status: 'pending',
-          created_at: new Date().toISOString(),
-          name: 'Operador'
-        };
-        saveUsers(users);
+      if (!user) {
+        await supabase
+          .from('users')
+          .insert([{
+            email,
+            subscription_status: 'pending',
+            created_at: new Date().toISOString(),
+            name: 'Operador',
+            history: { answeredQuestions: {} }
+          }]);
       }
 
       const stripe = getStripe();

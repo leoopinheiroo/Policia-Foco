@@ -15,7 +15,11 @@ const COMMON_THEMES = [
   "A integração entre as polícias no combate à criminalidade interestadual"
 ];
 
-export const EssayCorrection: React.FC = () => {
+interface EssayCorrectionProps {
+  userEmail: string;
+}
+
+export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) => {
   const [theme, setTheme] = useState("");
   const [essay, setEssay] = useState("");
   const [isCorrecting, setIsCorrecting] = useState(false);
@@ -31,6 +35,23 @@ export const EssayCorrection: React.FC = () => {
       const result = await correctEssayWithAi(essay, theme);
       if (result) {
         setFeedback(result);
+        
+        // Salvar no Supabase
+        try {
+          await fetch('/api/user/essays/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: userEmail,
+              theme: theme,
+              content: essay,
+              correction_json: result,
+              final_score: result.score
+            })
+          });
+        } catch (e) {
+          console.error("Erro ao salvar histórico de redação:", e);
+        }
       } else {
         alert("Não foi possível obter a correção. Tente novamente.");
       }

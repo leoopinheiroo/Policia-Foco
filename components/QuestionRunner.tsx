@@ -73,8 +73,13 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isPrefetching, setIsPrefetching] = useState(false);
+  const startTimeRef = useRef<number>(Date.now());
 
   const prefetchingRef = useRef(false);
+
+  useEffect(() => {
+    startTimeRef.current = Date.now();
+  }, [currentIndex]);
 
   const handleAnswer = async (idx: number) => {
     if (selectedOption !== null) return;
@@ -82,6 +87,7 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
     
     const currentQ = questions[currentIndex];
     const isCorrect = idx === currentQ.correta;
+    const responseTime = Date.now() - startTimeRef.current;
 
     try {
       await fetch('/api/user/history/save', {
@@ -93,6 +99,7 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
           result: {
             correct: isCorrect,
             answerIndex: idx,
+            responseTime: responseTime,
             question: currentQ
           }
         })

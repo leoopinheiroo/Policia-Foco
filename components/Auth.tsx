@@ -126,22 +126,21 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
              )}
 
              {mode === 'SIGNUP' && (
-                <div>
-                   <label htmlFor="full-name" className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">Nome Completo</label>
+                <div className="animate-in fade-in slide-in-from-top-4 duration-500">
+                   <label htmlFor="full-name" className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">Como quer ser chamado? (Opcional)</label>
                    <input 
                       id="full-name"
                       name="name"
                       type="text" 
                       autoComplete="name"
-                      required
-                      className="w-full bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition text-sm font-medium"
-                      placeholder="Ex: Leonardo Pinheiro"
+                      className="w-full bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition text-sm font-medium placeholder:text-slate-700"
+                      placeholder="Ex: Leonardo"
                    />
                 </div>
              )}
              
              <div>
-                <label htmlFor="email-address" className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">Email de Acesso</label>
+                <label htmlFor="email-address" className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">Seu melhor E-mail</label>
                 <input 
                    id="email-address"
                    name="email"
@@ -150,16 +149,16 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
                    required
                    value={email}
                    onChange={(e) => setEmail(e.target.value)}
-                   className="w-full bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition text-sm font-medium"
-                   placeholder="seu@email.com"
+                   className="w-full bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition text-sm font-medium placeholder:text-slate-700"
+                   placeholder="exemplo@email.com"
                 />
              </div>
 
              <div>
                 <div className="flex justify-between mb-2 ml-1">
-                   <label htmlFor="password-field" className="text-[10px] font-black uppercase tracking-widest text-slate-500">{mode === 'FORGOT_PASSWORD' ? 'Confirmação de Identidade' : 'Senha'}</label>
+                   <label htmlFor="password-field" className="text-[10px] font-black uppercase tracking-widest text-slate-500">{mode === 'FORGOT_PASSWORD' ? 'Confirmação de Identidade' : 'Crie sua Senha'}</label>
                    {mode === 'LOGIN' && (
-                     <button onClick={onGoForgot} type="button" className="text-[9px] text-yellow-500/40 hover:text-yellow-500 font-black uppercase tracking-widest transition">Recuperar</button>
+                     <button onClick={onGoForgot} type="button" className="text-[9px] text-yellow-500/40 hover:text-yellow-500 font-black uppercase tracking-widest transition">Esqueceu a senha?</button>
                    )}
                 </div>
                 {mode !== 'FORGOT_PASSWORD' ? (
@@ -171,8 +170,8 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
                      required
                      value={password}
                      onChange={(e) => setPassword(e.target.value)}
-                     className="w-full bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition text-sm tracking-[0.3em]"
-                     placeholder="••••••••"
+                     className="w-full bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition text-sm tracking-[0.3em] placeholder:text-slate-700 placeholder:tracking-normal"
+                     placeholder="Mínimo 6 caracteres"
                   />
                 ) : (
                   <div className="text-[10px] text-slate-400 font-medium leading-relaxed px-1 italic">
