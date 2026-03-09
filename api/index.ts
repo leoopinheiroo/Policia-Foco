@@ -3,13 +3,23 @@ import Stripe from 'stripe';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { supabase } from './supabase.js';
+import { supabase } from './supabase';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Middleware para verificar se o Supabase está configurado
+  const checkSupabase = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (!supabase) {
+      return res.status(500).json({ 
+        error: 'O banco de dados (Supabase) não está configurado. Verifique as chaves SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no menu Settings.' 
+      });
+    }
+    next();
+  };
 
   // Initialize Stripe lazily to avoid crash if key is missing
   const getStripe = () => {
@@ -52,11 +62,16 @@ async function startServer() {
 
   // Health check
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', message: 'Server is running', env: process.env.NODE_ENV });
+    res.json({ 
+      status: 'ok', 
+      message: 'Server is running', 
+      supabase: !!supabase,
+      env: process.env.NODE_ENV 
+    });
   });
   
   // Stripe Webhook (must be before express.json())
-  app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  app.post('/api/webhook', express.raw({ type: 'application/json' }), checkSupabase, async (req, res) => {
     const sig = req.headers['stripe-signature'];
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -123,7 +138,7 @@ async function startServer() {
   app.use(express.json());
 
   // Auth Routes
-  app.post('/api/auth/register', async (req, res) => {
+  app.post('/api/auth/register', checkSupabase, async (req, res) => {
     try {
       const { email, password, name } = req.body;
       if (!email || !password) return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
@@ -156,7 +171,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/auth/login', async (req, res) => {
+  app.post('/api/auth/login', checkSupabase, async (req, res) => {
     try {
       const { email: rawEmail, password: rawPassword } = req.body;
       const email = rawEmail?.trim().toLowerCase();
@@ -227,7 +242,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/auth/forgot-password', async (req, res) => {
+  app.post('/api/auth/forgot-password', checkSupabase, async (req, res) => {
     try {
       const { email: rawEmail } = req.body;
       const email = rawEmail?.trim().toLowerCase();
@@ -262,7 +277,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/user/status', async (req, res) => {
+  app.get('/api/user/status', checkSupabase, async (req, res) => {
     try {
       const email = req.query.email as string;
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
@@ -288,7 +303,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/user/history', async (req, res) => {
+  app.get('/api/user/history', checkSupabase, async (req, res) => {
     try {
       const email = req.query.email as string;
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
@@ -307,7 +322,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/user/history/save', async (req, res) => {
+  app.post('/api/user/history/save', checkSupabase, async (req, res) => {
     try {
       const { email, questionId, result } = req.body;
       if (!email || !questionId || !result) return res.status(400).json({ error: 'Dados incompletos.' });
@@ -341,7 +356,7 @@ async function startServer() {
   });
 
   // Simulados History
-  app.post('/api/user/simulados/save', async (req, res) => {
+  app.post('/api/user/simulados/save', checkSupabase, async (req, res) => {
     try {
       const { email, score_percentage, correct_count, total_questions, subjects } = req.body;
       if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
@@ -365,7 +380,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/user/simulados/history', async (req, res) => {
+  app.get('/api/user/simulados/history', checkSupabase, async (req, res) => {
     try {
       const email = req.query.email as string;
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
@@ -385,7 +400,7 @@ async function startServer() {
   });
 
   // Flashcards
-  app.post('/api/user/flashcards/save', async (req, res) => {
+  app.post('/api/user/flashcards/save', checkSupabase, async (req, res) => {
     try {
       const { email, materia, assunto, front, back, status } = req.body;
       if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
@@ -410,7 +425,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/user/flashcards/list', async (req, res) => {
+  app.get('/api/user/flashcards/list', checkSupabase, async (req, res) => {
     try {
       const email = req.query.email as string;
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
@@ -429,7 +444,7 @@ async function startServer() {
   });
 
   // Essays
-  app.post('/api/user/essays/save', async (req, res) => {
+  app.post('/api/user/essays/save', checkSupabase, async (req, res) => {
     try {
       const { email, theme, content, correction_json, final_score } = req.body;
       if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
@@ -453,7 +468,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/user/essays/history', async (req, res) => {
+  app.get('/api/user/essays/history', checkSupabase, async (req, res) => {
     try {
       const email = req.query.email as string;
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
@@ -472,7 +487,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/create-checkout-session', async (req, res) => {
+  app.post('/api/create-checkout-session', checkSupabase, async (req, res) => {
     try {
       const { plan, email } = req.body;
       if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
