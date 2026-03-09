@@ -7,61 +7,31 @@ import { supabase } from './supabase';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-async function startServer() {
-  try {
-    const app = express();
-    const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  // Middleware para verificar se o Supabase está configurado
-  const checkSupabase = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.log(`[Middleware] Checking Supabase for ${req.method} ${req.url}`);
-    if (!supabase) {
-      console.error('[Middleware] Supabase client is NULL');
-      return res.status(500).json({ 
-        error: 'O banco de dados (Supabase) não está configurado. Verifique as chaves SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no menu Settings.' 
-      });
-    }
-    next();
-  };
+// Early health check
+app.get('/healthz', (req, res) => res.send('ok'));
 
-  // Initialize Stripe lazily to avoid crash if key is missing
-  const getStripe = () => {
-    let key = '';
-    let usedVar = '';
-
-    if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY.trim()) {
-      key = process.env.STRIPE_SECRET_KEY.trim();
-      usedVar = 'STRIPE_SECRET_KEY';
-    } else if (process.env.STRIPE_SECRET && process.env.STRIPE_SECRET.trim()) {
-      key = process.env.STRIPE_SECRET.trim();
-      usedVar = 'STRIPE_SECRET';
-    }
-    
-    // Remove possíveis aspas ou caracteres invisíveis que podem vir da Vercel
-    key = key.replace(/['"\s\u200B-\u200D\uFEFF]/g, '');
-
-    const availableKeys = Object.keys(process.env).filter(k => k.toUpperCase().includes('STRIPE'));
-    console.log(`[Stripe] Usando variável: ${usedVar}. Chaves detectadas:`, availableKeys);
-
-    if (!key) {
-      throw new Error(`Nenhuma chave secreta do Stripe encontrada. Verifique se STRIPE_SECRET_KEY está configurada na Vercel. Variáveis detectadas: ${availableKeys.join(', ') || 'nenhuma'}`);
-    }
-    
-    // Stripe keys start with sk_ (secret) or rk_ (restricted)
-    if (!key.startsWith('sk_') && !key.startsWith('rk_')) {
-      // Se a chave começar com pk_, o usuário inverteu as chaves
-      if (key.startsWith('pk_')) {
-        throw new Error(`A variável ${usedVar} contém uma CHAVE PÚBLICA (pk_) em vez de uma CHAVE SECRETA (sk_). Inverta as chaves no painel da Vercel.`);
-      }
-      throw new Error(`A chave na variável ${usedVar} começa com "${key.substring(0, 3)}...", mas deve começar com "sk_" ou "rk_". Verifique se você não copiou a chave errada ou se há espaços/caracteres extras.`);
-    }
-    
-    return new Stripe(key, {
-      apiVersion: '2024-06-20' as any,
+// Middleware para verificar se o Supabase está configurado
+const checkSupabase = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!supabase) {
+    return res.status(500).json({ 
+      error: 'O banco de dados (Supabase) não está configurado. Verifique as chaves SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no menu Settings.' 
     });
-  };
+  }
+  next();
+};
 
-  app.use(cors());
+// Initialize Stripe lazily
+const getStripe = () => {
+  let key = (process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || '').trim();
+  key = key.replace(/['"\s\u200B-\u200D\uFEFF]/g, '');
+  if (!key) throw new Error('Stripe key missing');
+  return new Stripe(key, { apiVersion: '2024-06-20' as any });
+};
+
+app.use(cors());
 
   // Health check
   app.get('/api/health', (req, res) => {
@@ -580,64 +550,52 @@ async function startServer() {
     }
   });
 
-  // Global error handler
-  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error('Global error handler caught:', err);
-    res.status(500).json({ 
-      error: 'Erro interno no servidor.',
-      message: err.message,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-    });
+// Global error handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Global error handler caught:', err);
+  res.status(500).json({ 
+    error: 'Erro interno no servidor.',
+    message: err.message
   });
+});
 
-  app.all('/api/*', (req, res) => {
-    res.status(404).json({ error: `Rota não encontrada: ${req.url}` });
-  });
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ error: `Rota não encontrada: ${req.url}` });
+});
 
-  // Vite middleware for development
-  const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
-  
-  if (!isProd) {
+// Vite middleware for development
+const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+
+if (!isProd) {
+  console.log('[Server] Starting in development mode with Vite middleware (async)...');
+  import('vite').then(async ({ createServer: createViteServer }) => {
     try {
-      console.log('[Server] Starting in development mode with Vite middleware...');
-      const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: 'spa',
       });
       app.use(vite.middlewares);
+      console.log('[Server] Vite middleware loaded successfully');
     } catch (e) {
-      console.error('[Server] Failed to load Vite middleware:', e);
+      console.error('[Server] Failed to initialize Vite server:', e);
     }
-  } else {
-    console.log('[Server] Starting in production mode...');
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT} (NODE_ENV: ${process.env.NODE_ENV})`);
+  }).catch(e => {
+    console.error('[Server] Failed to load Vite module:', e);
   });
-
-  return app;
-  } catch (err: any) {
-    console.error('[Server] CRITICAL STARTUP ERROR:', err);
-    // Create a minimal app to respond with the error
-    const app = express();
-    app.all('*', (req, res) => {
-      res.status(500).json({ 
-        error: 'O servidor falhou ao iniciar.',
-        details: err.message,
-        stack: err.stack
-      });
-    });
-    app.listen(3000, '0.0.0.0');
-    return app;
-  }
+} else {
+  console.log('[Server] Starting in production mode...');
+  const distPath = path.join(process.cwd(), 'dist');
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
 }
 
-export const app = await startServer();
+// Start the server if not in Vercel
+if (process.env.VERCEL !== '1') {
+  app.listen(3000, '0.0.0.0', () => {
+    console.log('[Server] Listening on port 3000');
+  });
+}
+
 export default app;
