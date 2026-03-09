@@ -60,7 +60,7 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
         console.error("Non-JSON response:", text);
         // Se for um erro do Supabase ou do servidor que retornou texto, tentamos mostrar o começo dele
         const snippet = text.substring(0, 100).replace(/<[^>]*>?/gm, '');
-        throw new Error(`ERRO NO SERVIDOR (${response.status}): ${snippet || 'RESPOSTA INVÁLIDA'}`);
+        throw new Error(`[v2] ERRO NO SERVIDOR (${response.status}): ${snippet || 'RESPOSTA INVÁLIDA'}`);
       }
 
       const data = await response.json();

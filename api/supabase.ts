@@ -6,6 +6,10 @@ const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
 if (!supabaseUrl) {
   console.error('[Supabase] CRITICAL: SUPABASE_URL is not defined in environment variables.');
+} else {
+  console.log('[Supabase] Initializing with URL:', supabaseUrl);
+  console.log('[Supabase] Service Key present:', !!supabaseServiceKey);
+  console.log('[Supabase] Anon Key present:', !!supabaseAnonKey);
 }
 
 // Use service key for backend operations to bypass RLS if needed
