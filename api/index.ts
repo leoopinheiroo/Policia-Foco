@@ -10,8 +10,19 @@ let supabaseClient: any = null;
 const getSupabase = () => {
   if (supabaseClient) return supabaseClient;
   const url = (process.env.SUPABASE_URL || '').trim();
-  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
-  if (!url || !key) return null;
+  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  const anonKey = (process.env.SUPABASE_ANON_KEY || '').trim();
+  const key = serviceKey || anonKey;
+  
+  if (!url || !key) {
+    const missing = [];
+    if (!url) missing.push('SUPABASE_URL');
+    if (!key) missing.push('SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_ANON_KEY');
+    if (missing.length > 0) {
+      console.warn(`[Supabase] Configuração incompleta. Faltando: ${missing.join(', ')}`);
+    }
+    return null;
+  }
   try {
     supabaseClient = createClient(url, key);
     return supabaseClient;
@@ -25,8 +36,12 @@ const getSupabase = () => {
 const checkSupabase = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const supabase = getSupabase();
   if (!supabase) {
+    const missing = [];
+    if (!process.env.SUPABASE_URL) missing.push('SUPABASE_URL');
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_ANON_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+    
     return res.status(500).json({ 
-      error: 'O banco de dados (Supabase) não está configurado. Verifique as chaves SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no menu Settings.' 
+      error: `O banco de dados (Supabase) não está configurado. Verifique as chaves no menu Settings: ${missing.join(', ')}.` 
     });
   }
   (req as any).supabase = supabase;
@@ -45,10 +60,17 @@ app.use(cors());
 
   app.get('/api/health', (req, res) => {
     const supabase = getSupabase();
+    const missingKeys = [];
+    if (!process.env.SUPABASE_URL) missingKeys.push('SUPABASE_URL');
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_ANON_KEY) missingKeys.push('SUPABASE_SERVICE_ROLE_KEY');
+    if (!process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_SECRET) missingKeys.push('STRIPE_SECRET_KEY');
+    if (!process.env.GEMINI_API_KEY && !process.env.API_KEY) missingKeys.push('GEMINI_API_KEY');
+
     res.json({ 
       status: 'ok', 
       message: 'Server is running', 
       supabase: !!supabase,
+      missing_keys: missingKeys,
       env: process.env.NODE_ENV 
     });
   });
