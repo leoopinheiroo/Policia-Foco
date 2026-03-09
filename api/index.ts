@@ -564,37 +564,56 @@ app.all('/api/*', (req, res) => {
 });
 
 // Vite middleware for development
-const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+const isProd = process.env.NODE_ENV === 'production' || !!process.env.VERCEL || !!process.env.CI;
 
 if (!isProd) {
-  console.log('[Server] Starting in development mode with Vite middleware (async)...');
-  import('vite').then(async ({ createServer: createViteServer }) => {
+  console.log('[Server] Development mode: Loading Vite...');
+  // We use a dynamic import with a variable to try and hide it from some bundlers
+  const viteModule = 'vite';
+  import(viteModule).then(async ({ createServer: createViteServer }) => {
     try {
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: 'spa',
       });
       app.use(vite.middlewares);
-      console.log('[Server] Vite middleware loaded successfully');
+      console.log('[Server] Vite middleware loaded');
     } catch (e) {
-      console.error('[Server] Failed to initialize Vite server:', e);
+      console.error('[Server] Vite init error:', e);
     }
   }).catch(e => {
-    console.error('[Server] Failed to load Vite module:', e);
+    console.error('[Server] Vite load error:', e);
   });
 } else {
-  console.log('[Server] Starting in production mode...');
+  console.log('[Server] Production mode: Serving static files');
   const distPath = path.join(process.cwd(), 'dist');
   app.use(express.static(distPath));
   app.get('*', (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
+    // Check if it's an API route first (should be handled by previous routes, but just in case)
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: 'API route not found' });
+    }
+    res.sendFile(path.join(distPath, 'index.html'), (err) => {
+      if (err) {
+        res.status(404).send('Frontend not built. Run npm run build.');
+      }
+    });
   });
 }
 
-// Start the server if not in Vercel
-if (process.env.VERCEL !== '1') {
-  app.listen(3000, '0.0.0.0', () => {
+// Start the server if NOT on Vercel
+// Vercel handles the listening, but Cloud Run/Local need it.
+if (!process.env.VERCEL) {
+  const server = app.listen(3000, '0.0.0.0', () => {
     console.log('[Server] Listening on port 3000');
+  });
+  
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log('[Server] Port 3000 already in use, assuming already running.');
+    } else {
+      console.error('[Server] Server error:', err);
+    }
   });
 }
 

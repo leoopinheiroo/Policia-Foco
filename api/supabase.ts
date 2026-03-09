@@ -16,8 +16,10 @@ if (!supabaseUrl) {
 // We initialize lazily or provide a dummy if missing to avoid crash at startup
 let supabaseClient: any = null;
 try {
-  if (supabaseUrl) {
+  if (supabaseUrl && (supabaseServiceKey || supabaseAnonKey)) {
     supabaseClient = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey);
+  } else {
+    console.warn('[Supabase] Missing URL or Keys. Client will be null.');
   }
 } catch (e) {
   console.error('[Supabase] Failed to initialize client:', e);
