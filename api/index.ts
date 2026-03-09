@@ -162,16 +162,21 @@ async function startServer() {
       const email = rawEmail?.trim().toLowerCase();
       const password = rawPassword?.trim();
 
+      console.log(`[LOGIN] Tentativa de login para: ${email}`);
+
       // Privilégio de Desenvolvedor
-      if (email === 'leonardo.pinheiros@hotmail.com' && password === 'leo5366.Leo') {
-        const { data: devUser } = await supabase
+      const devEmails = ['leonardo.pinheiros@hotmail.com', 'leonardo.pinheiros5366@gmail.com'];
+      if (devEmails.includes(email) && password === 'leo5366.Leo') {
+        console.log(`[LOGIN] Acesso de desenvolvedor detectado para: ${email}`);
+        const { data: devUser, error: fetchDevError } = await supabase
           .from('users')
           .select('*')
           .eq('email', email)
           .single();
 
-        if (!devUser) {
-          await supabase
+        if (fetchDevError || !devUser) {
+          console.log(`[LOGIN] Criando registro de desenvolvedor para: ${email}`);
+          const { error: insertDevError } = await supabase
             .from('users')
             .insert([{
               email,
@@ -181,7 +186,19 @@ async function startServer() {
               created_at: new Date().toISOString(),
               history: { answeredQuestions: {} }
             }]);
+          
+          if (insertDevError) {
+            console.error('[LOGIN] Erro ao criar desenvolvedor:', insertDevError);
+            throw insertDevError;
+          }
+        } else if (devUser.subscription_status !== 'active') {
+          // Garante que o desenvolvedor sempre tenha acesso ativo
+          await supabase
+            .from('users')
+            .update({ subscription_status: 'active' })
+            .eq('email', email);
         }
+        
         return res.json({ success: true, email, status: 'active', name: 'Leonardo (Dev)' });
       }
 
@@ -191,14 +208,22 @@ async function startServer() {
         .eq('email', email)
         .single();
 
-      if (error || !user || user.password !== password) {
+      if (error) {
+        console.error('[LOGIN] Erro ao buscar usuário:', error);
+        if (error.code === 'PGRST116') {
+          return res.status(401).json({ error: 'Operador não encontrado.' });
+        }
+        throw error;
+      }
+
+      if (!user || user.password !== password) {
         return res.status(401).json({ error: 'Credenciais inválidas.' });
       }
 
       res.json({ success: true, email: user.email, status: user.subscription_status, name: user.name });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
-      res.status(500).json({ error: 'Erro no servidor ao logar.' });
+      res.status(500).json({ error: `Erro no servidor ao logar: ${error.message || 'Erro desconhecido'}` });
     }
   });
 
