@@ -13,7 +13,9 @@ async function startServer() {
 
   // Middleware para verificar se o Supabase está configurado
   const checkSupabase = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.log(`[Middleware] Checking Supabase for ${req.method} ${req.url}`);
     if (!supabase) {
+      console.error('[Middleware] Supabase client is NULL');
       return res.status(500).json({ 
         error: 'O banco de dados (Supabase) não está configurado. Verifique as chaves SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no menu Settings.' 
       });
@@ -575,6 +577,16 @@ async function startServer() {
       console.error('Stripe Session Error:', error);
       res.status(500).json({ error: `Erro no Stripe: ${error.message}` });
     }
+  });
+
+  // Global error handler
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('Global error handler caught:', err);
+    res.status(500).json({ 
+      error: 'Erro interno no servidor.',
+      message: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   });
 
   app.all('/api/*', (req, res) => {
