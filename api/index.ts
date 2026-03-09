@@ -1,25 +1,35 @@
 import express from 'express';
 import Stripe from 'stripe';
 import cors from 'cors';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { supabase } from './supabase';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { createClient } from '@supabase/supabase-js';
 
 const app = express();
-const PORT = 3000;
 
-// Early health check
-app.get('/healthz', (req, res) => res.send('ok'));
+// Supabase Lazy Initialization
+let supabaseClient: any = null;
+const getSupabase = () => {
+  if (supabaseClient) return supabaseClient;
+  const url = (process.env.SUPABASE_URL || '').trim();
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+  if (!url || !key) return null;
+  try {
+    supabaseClient = createClient(url, key);
+    return supabaseClient;
+  } catch (e) {
+    console.error('[Supabase] Init error:', e);
+    return null;
+  }
+};
 
 // Middleware para verificar se o Supabase está configurado
 const checkSupabase = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const supabase = getSupabase();
   if (!supabase) {
     return res.status(500).json({ 
       error: 'O banco de dados (Supabase) não está configurado. Verifique as chaves SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no menu Settings.' 
     });
   }
+  (req as any).supabase = supabase;
   next();
 };
 
@@ -33,8 +43,8 @@ const getStripe = () => {
 
 app.use(cors());
 
-  // Health check
   app.get('/api/health', (req, res) => {
+    const supabase = getSupabase();
     res.json({ 
       status: 'ok', 
       message: 'Server is running', 
@@ -59,6 +69,7 @@ app.use(cors());
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
+    const supabase = (req as any).supabase;
     const { data: users, error: fetchError } = await supabase
       .from('users')
       .select('*');
@@ -113,6 +124,7 @@ app.use(cors());
   // Auth Routes
   app.post('/api/auth/register', checkSupabase, async (req, res) => {
     try {
+      const supabase = (req as any).supabase;
       const { email, password, name } = req.body;
       if (!email || !password) return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
 
@@ -146,6 +158,7 @@ app.use(cors());
 
   app.post('/api/auth/login', checkSupabase, async (req, res) => {
     try {
+      const supabase = (req as any).supabase;
       const { email: rawEmail, password: rawPassword } = req.body;
       const email = rawEmail?.trim().toLowerCase();
       const password = rawPassword?.trim();
@@ -217,6 +230,7 @@ app.use(cors());
 
   app.post('/api/auth/forgot-password', checkSupabase, async (req, res) => {
     try {
+      const supabase = (req as any).supabase;
       const { email: rawEmail } = req.body;
       const email = rawEmail?.trim().toLowerCase();
       if (!email) return res.status(400).json({ error: 'Email é obrigatório.' });
@@ -252,6 +266,7 @@ app.use(cors());
 
   app.get('/api/user/status', checkSupabase, async (req, res) => {
     try {
+      const supabase = (req as any).supabase;
       const email = req.query.email as string;
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
       
@@ -278,6 +293,7 @@ app.use(cors());
 
   app.get('/api/user/history', checkSupabase, async (req, res) => {
     try {
+      const supabase = (req as any).supabase;
       const email = req.query.email as string;
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
       
@@ -297,6 +313,7 @@ app.use(cors());
 
   app.post('/api/user/history/save', checkSupabase, async (req, res) => {
     try {
+      const supabase = (req as any).supabase;
       const { email, questionId, result } = req.body;
       if (!email || !questionId || !result) return res.status(400).json({ error: 'Dados incompletos.' });
       
@@ -331,6 +348,7 @@ app.use(cors());
   // Simulados History
   app.post('/api/user/simulados/save', checkSupabase, async (req, res) => {
     try {
+      const supabase = (req as any).supabase;
       const { email, score_percentage, correct_count, total_questions, subjects } = req.body;
       if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
 
@@ -355,6 +373,7 @@ app.use(cors());
 
   app.get('/api/user/simulados/history', checkSupabase, async (req, res) => {
     try {
+      const supabase = (req as any).supabase;
       const email = req.query.email as string;
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
 
@@ -375,6 +394,7 @@ app.use(cors());
   // Flashcards
   app.post('/api/user/flashcards/save', checkSupabase, async (req, res) => {
     try {
+      const supabase = (req as any).supabase;
       const { email, materia, assunto, front, back, status } = req.body;
       if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
 
@@ -400,6 +420,7 @@ app.use(cors());
 
   app.get('/api/user/flashcards/list', checkSupabase, async (req, res) => {
     try {
+      const supabase = (req as any).supabase;
       const email = req.query.email as string;
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
 
@@ -419,6 +440,7 @@ app.use(cors());
   // Essays
   app.post('/api/user/essays/save', checkSupabase, async (req, res) => {
     try {
+      const supabase = (req as any).supabase;
       const { email, theme, content, correction_json, final_score } = req.body;
       if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
 
@@ -443,6 +465,7 @@ app.use(cors());
 
   app.get('/api/user/essays/history', checkSupabase, async (req, res) => {
     try {
+      const supabase = (req as any).supabase;
       const email = req.query.email as string;
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
 
@@ -462,6 +485,7 @@ app.use(cors());
 
   app.post('/api/create-checkout-session', checkSupabase, async (req, res) => {
     try {
+      const supabase = (req as any).supabase;
       const { plan, email } = req.body;
       if (!email) return res.status(400).json({ error: 'Email obrigatório.' });
       
