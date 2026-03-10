@@ -14,7 +14,10 @@ export const Dashboard: React.FC = () => {
 
   useEffect(() => {
     const fetchHistory = async () => {
-      if (!userEmail) return;
+      if (!userEmail) {
+        setIsLoading(false);
+        return;
+      }
       try {
         const { data, error } = await supabase
           .from('users')

@@ -28,23 +28,28 @@ const App: React.FC = () => {
 
   useEffect(() => {
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setIsLoggedIn(true);
-        setUserEmail(session.user.email || '');
-        // Fetch profile name if available
-        supabase.from('users').select('name').eq('email', session.user.email).single()
-          .then(({ data }) => {
-            if (data?.name) setUserName(data.name);
-          });
-      } else {
-        setIsLoggedIn(false);
-        setUserEmail('');
-        setIsPaid(false);
-      }
-    });
+    try {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (session?.user) {
+          setIsLoggedIn(true);
+          setUserEmail(session.user.email || '');
+          // Fetch profile name if available
+          supabase.from('users').select('name').eq('email', session.user.email).single()
+            .then(({ data }: any) => {
+              if (data?.name) setUserName(data.name);
+            });
+        } else {
+          setIsLoggedIn(false);
+          setUserEmail('');
+          setIsPaid(false);
+        }
+      });
 
-    return () => subscription.unsubscribe();
+      return () => subscription.unsubscribe();
+    } catch (e) {
+      console.error('Supabase Auth Listener Error:', e);
+      // If Supabase is not configured, we just don't set up the listener
+    }
   }, []);
   
   const [currentView, setCurrentView] = useState<ViewState>('LANDING');
