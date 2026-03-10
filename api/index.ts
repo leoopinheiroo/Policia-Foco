@@ -18,6 +18,8 @@ const getSupabase = () => {
   const anonKey = sanitize(process.env.SUPABASE_ANON_KEY);
   const key = serviceKey || anonKey;
   
+  console.log(`[Supabase] Verificando configuração: URL=${url ? 'OK' : 'MISSING'}, Key=${serviceKey ? 'SERVICE_ROLE' : (anonKey ? 'ANON' : 'MISSING')}`);
+
   if (!url || !key) {
     const missing = [];
     if (!url) missing.push('SUPABASE_URL');
