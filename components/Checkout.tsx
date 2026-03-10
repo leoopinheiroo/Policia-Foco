@@ -81,6 +81,8 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
     }
   };
 
+  const currentPlanInfo = planInfo[selectedPlan] || planInfo.ANNUAL;
+
   if (step === 'PROCESSING') {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-center p-6 text-white">
@@ -114,10 +116,10 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                 
                 <div className="flex justify-between items-center mb-6 pb-6 border-b border-slate-100">
                    <div>
-                      <p className="font-black text-slate-900">{planInfo[selectedPlan].name}</p>
+                      <p className="font-black text-slate-900">{currentPlanInfo.name}</p>
                       <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Acesso Full + IA Ilimitada</p>
                    </div>
-                   <p className="font-black">R$ {planInfo[selectedPlan].price.toFixed(2).replace('.', ',')}</p>
+                   <p className="font-black">R$ {currentPlanInfo.price.toFixed(2).replace('.', ',')}</p>
                 </div>
 
                 <div className="space-y-4 mb-10">
@@ -297,7 +299,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                    }}
                    className="w-full bg-slate-900 text-white py-8 rounded-[2.5rem] font-black text-2xl hover:bg-slate-800 transition-all shadow-2xl hover:scale-[1.01] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                   {selectedMethod === 'PIX' ? 'ENVIAR COMPROVANTE (WHATSAPP)' : (loading ? 'PROCESSANDO...' : `PAGAR R$ ${planInfo[selectedPlan].price.toFixed(2).replace('.', ',')} AGORA`)}
+                   {selectedMethod === 'PIX' ? 'ENVIAR COMPROVANTE (WHATSAPP)' : (loading ? 'PROCESSANDO...' : `PAGAR R$ ${currentPlanInfo.price.toFixed(2).replace('.', ',')} AGORA`)}
                 </button>
              </form>
 

@@ -417,8 +417,46 @@ const App: React.FC = () => {
   if (currentView === 'FORGOT_PASSWORD') return <Auth mode="FORGOT_PASSWORD" onAuth={() => {}} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => {}} onSuccess={() => {}} onBack={() => setCurrentView('LOGIN')} />;
   if (currentView === 'CHECKOUT') return <Checkout initialPlan={selectedPlan} onPaymentComplete={() => { setIsPaid(true); setCurrentView('HOME'); }} onBack={() => setCurrentView('LANDING')} />;
 
-  return null;
+  // Fallback para evitar tela branca se o estado ficar inconsistente
+  return <LandingPage onStart={handleStart} onLogin={() => setCurrentView('LOGIN')} />;
 };
+
+// Componente de Erro para evitar tela branca total
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-center p-12 text-white">
+          <div className="text-6xl mb-8">⚠️</div>
+          <h2 className="text-4xl font-black tracking-tighter mb-4">ALGO DEU ERRADO</h2>
+          <p className="text-slate-400 max-w-md font-medium mb-10">
+            {this.state.error?.message || 'Ocorreu um erro inesperado na plataforma.'}
+          </p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="bg-white text-slate-950 px-10 py-4 rounded-2xl font-black uppercase text-xs tracking-widest"
+          >
+            Recarregar Plataforma
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const AppWithErrorBoundary = () => (
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);
 
 const SubjectSection = ({ title, items, onSubjectClick }: any) => (
   <div className="space-y-8">
@@ -440,4 +478,4 @@ const SubjectSection = ({ title, items, onSubjectClick }: any) => (
   </div>
 );
 
-export default App;
+export default AppWithErrorBoundary;

@@ -28,8 +28,13 @@ export const supabase = new Proxy({} as any, {
   get: (target, prop) => {
     const instance = getSupabase();
     if (!instance) {
-      // Se alguém tentar acessar uma propriedade (como supabase.auth), lançamos um erro amigável
-      throw new Error('Supabase não configurado. Por favor, adicione VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no menu Settings do AI Studio.');
+      // Se estivermos na Vercel, a mensagem deve ser diferente
+      const isVercel = window.location.hostname.includes('vercel.app');
+      const message = isVercel 
+        ? 'Supabase não configurado na Vercel. Adicione VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY nas "Environment Variables" do seu projeto na Vercel e faça um novo Deploy.'
+        : 'Supabase não configurado. Adicione VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no menu Settings do AI Studio.';
+      
+      throw new Error(message);
     }
     return instance[prop];
   }
