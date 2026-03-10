@@ -142,11 +142,31 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
                     <div className="flex flex-col items-center">
                         <div className={`
                             text-5xl font-black mb-1
-                            ${feedback.score >= 8 ? 'text-green-400' : feedback.score >= 6 ? 'text-yellow-400' : 'text-red-400'}
+                            ${feedback.score >= 80 ? 'text-green-400' : feedback.score >= 60 ? 'text-yellow-400' : 'text-red-400'}
                         `}>
                             {feedback.score.toFixed(1)}
                         </div>
-                        <span className="text-xs bg-white/10 px-3 py-1 rounded-full uppercase tracking-widest font-bold">Nota Final</span>
+                        <span className="text-xs bg-white/10 px-3 py-1 rounded-full uppercase tracking-widest font-bold">Nota Final / 100</span>
+                    </div>
+                </div>
+
+                {/* Detailed Scores Breakdown */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Conteúdo</div>
+                        <div className="text-xl font-black text-white">{feedback.detailedScores.conteudo}/40</div>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Estrutura</div>
+                        <div className="text-xl font-black text-white">{feedback.detailedScores.estrutura}/20</div>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Argumentação</div>
+                        <div className="text-xl font-black text-white">{feedback.detailedScores.argumentacao}/20</div>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Gramática</div>
+                        <div className="text-xl font-black text-white">{feedback.detailedScores.gramatica}/20</div>
                     </div>
                 </div>
              </div>
@@ -242,7 +262,7 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
                                     {/* Original (Wrong) */}
                                     <div className="flex-1 p-5 border-b md:border-b-0 md:border-r border-slate-100 bg-red-50/30 relative">
                                         <div className="absolute top-0 left-0 bg-red-100 text-red-600 px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-br-lg">
-                                            Trecho Original
+                                            {ex.paragraph ? `Erro no Parágrafo ${ex.paragraph}` : 'Trecho Original'}
                                         </div>
                                         <div className="mt-4 text-slate-600 italic font-serif text-lg leading-relaxed relative px-2">
                                             <span className="absolute -left-1 -top-1 text-4xl text-red-200 font-sans">"</span>

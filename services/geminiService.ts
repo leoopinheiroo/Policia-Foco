@@ -251,16 +251,28 @@ export const correctEssayWithAi = async (essay: string, theme: string): Promise<
       4. Domínio da Norma Culta (Gramática, pontuação, concordância, regência).
       
       REQUISITOS DA RESPOSTA:
-      - NOTA: De 0 a 10.0. Comece com 10.0 e aplique descontos rigorosos para cada erro gramatical (-0.1 a -0.5 dependendo da gravidade) e descontos maiores para falhas de estrutura ou fuga ao tema.
+      - NOTA: De 0 a 100.0.
+      - DETAILED_SCORES: Forneça uma pontuação detalhada em 4 critérios: Conteúdo (0-40), Estrutura (0-20), Argumentação (0-20) e Gramática (0-20). A soma deve ser o total.
       - MARKED_ESSAY: Retorne o texto completo da redação, mas envolva os erros em tags <u></u> (ex: <u>erro de concordância</u>).
       - COMENTÁRIOS: Explique a nota detalhadamente, citando os critérios da banca escolhida (CESPE ou VUNESP).
-      - EXEMPLOS: Mostre como reescrever trechos problemáticos.`,
+      - IMPROVEMENT_EXAMPLES: Mostre como reescrever trechos problemáticos, indicando em qual parágrafo o erro foi detectado.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            score: { type: Type.NUMBER, description: "Nota de 0 a 10.0" },
+            score: { type: Type.NUMBER, description: "Nota final de 0 a 100.0" },
+            detailedScores: {
+              type: Type.OBJECT,
+              properties: {
+                conteudo: { type: Type.NUMBER, description: "0 a 40" },
+                estrutura: { type: Type.NUMBER, description: "0 a 20" },
+                argumentacao: { type: Type.NUMBER, description: "0 a 20" },
+                gramatica: { type: Type.NUMBER, description: "0 a 20" },
+                total: { type: Type.NUMBER, description: "Soma dos critérios" }
+              },
+              required: ["conteudo", "estrutura", "argumentacao", "gramatica", "total"]
+            },
             comments: { type: Type.STRING, description: "Visão geral do examinador" },
             strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
             weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
@@ -273,13 +285,14 @@ export const correctEssayWithAi = async (essay: string, theme: string): Promise<
                 properties: {
                   original: { type: Type.STRING },
                   corrected: { type: Type.STRING },
-                  explanation: { type: Type.STRING }
+                  explanation: { type: Type.STRING },
+                  paragraph: { type: Type.INTEGER, description: "Número do parágrafo onde o erro foi detectado" }
                 },
-                required: ["original", "corrected", "explanation"]
+                required: ["original", "corrected", "explanation", "paragraph"]
               }
             }
           },
-          required: ["score", "comments", "strengths", "weaknesses", "grammarIssues", "markedEssay", "improvementExamples"]
+          required: ["score", "detailedScores", "comments", "strengths", "weaknesses", "grammarIssues", "markedEssay", "improvementExamples"]
         }
       }
     });

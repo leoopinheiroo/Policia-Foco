@@ -98,6 +98,13 @@ export interface QuestionFilters {
 
 export interface EssayFeedback {
   score: number;
+  detailedScores: {
+    conteudo: number;
+    estrutura: number;
+    argumentacao: number;
+    gramatica: number;
+    total: number;
+  };
   comments: string;
   strengths: string[];
   weaknesses: string[];
@@ -107,5 +114,6 @@ export interface EssayFeedback {
     original: string;
     corrected: string;
     explanation: string;
+    paragraph?: number;
   }[];
 }
