@@ -5,61 +5,44 @@ import { createClient } from '@supabase/supabase-js';
 
 const app = express();
 
+// Função robusta para capturar variáveis de ambiente com diferentes nomes
+const getSupabaseEnv = () => {
+  const sanitize = (val: string | undefined) => {
+    let cleaned = (val || '').trim().replace(/^['"]|['"]$/g, '');
+    return cleaned.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+  };
+
+  const find = (name: string) => {
+    if (process.env[name]) return process.env[name];
+    if (process.env[`VITE_${name}`]) return process.env[`VITE_${name}`];
+    const allKeys = Object.keys(process.env);
+    const foundKey = allKeys.find(k => k.toUpperCase().includes(name.toUpperCase()));
+    return foundKey ? process.env[foundKey] : undefined;
+  };
+
+  const url = sanitize(find('SUPABASE_URL'));
+  const serviceKey = sanitize(find('SUPABASE_SERVICE_ROLE_KEY') || find('SERVICE_ROLE_KEY'));
+  const anonKey = sanitize(find('SUPABASE_ANON_KEY') || find('ANON_KEY'));
+  
+  return { url, serviceKey, anonKey, key: serviceKey || anonKey };
+};
+
 // Supabase Lazy Initialization
 let supabaseClient: any = null;
 const getSupabase = () => {
   if (supabaseClient) return supabaseClient;
   
-  // Limpeza profunda das variáveis de ambiente para remover espaços, aspas ou caracteres invisíveis
-  const sanitize = (val: string | undefined, name: string) => {
-    let cleaned = (val || '').trim();
-    // Remove aspas comuns que usuários às vezes colam junto
-    cleaned = cleaned.replace(/^['"]|['"]$/g, '');
-    // Se o usuário colou "NOME_DA_VARIAVEL=valor", extraímos apenas o valor
-    if (cleaned.includes('=') && cleaned.toUpperCase().startsWith(name.toUpperCase() + '=')) {
-      cleaned = cleaned.split('=')[1];
-    }
-    // Remove caracteres invisíveis e espaços restantes
-    return cleaned.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
-  };
+  const { url, key } = getSupabaseEnv();
   
-  const url = sanitize(process.env.SUPABASE_URL, 'SUPABASE_URL');
-  const serviceKey = sanitize(process.env.SUPABASE_SERVICE_ROLE_KEY, 'SUPABASE_SERVICE_ROLE_KEY');
-  const anonKey = sanitize(process.env.SUPABASE_ANON_KEY, 'SUPABASE_ANON_KEY');
-  const key = serviceKey || anonKey;
-  
-  console.log(`[Supabase] Diagnóstico: URL=${url ? (url.startsWith('http') ? 'Válida' : 'Inválida (sem http)') : 'Faltando'}, Key=${serviceKey ? 'SERVICE_ROLE' : (anonKey ? 'ANON' : 'Faltando')}`);
-  if (url) console.log(`[Supabase] URL detectada (primeiros 15 chars): ${url.substring(0, 15)}...`);
-  if (key) console.log(`[Supabase] Key detectada (primeiros 10 chars): ${key.substring(0, 10)}...`);
-
-  if (!url || !key) {
-    const missing = [];
-    if (!url) missing.push('SUPABASE_URL');
-    if (!key) missing.push('SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_ANON_KEY');
-    console.error(`[Supabase] Configuração incompleta. Faltando: ${missing.join(', ')}`);
-    return null;
-  }
-
-  if (!url.startsWith('https://')) {
-    console.error('[Supabase] URL inválida. Deve começar com https://');
-    return null;
-  }
+  if (!url || !key) return null;
+  if (!url.startsWith('https://')) return null;
 
   try {
-    console.log(`[Supabase] Tentando inicializar createClient com URL: ${url.substring(0, 20)}...`);
     supabaseClient = createClient(url, key, {
-      auth: {
-        persistSession: false
-      }
+      auth: { persistSession: false }
     });
-    if (supabaseClient) {
-      console.log('[Supabase] Cliente inicializado com sucesso.');
-    } else {
-      console.error('[Supabase] createClient retornou nulo sem lançar erro.');
-    }
     return supabaseClient;
-  } catch (e: any) {
-    console.error('[Supabase] Erro fatal na inicialização do createClient:', e.message || e);
+  } catch (e) {
     return null;
   }
 };
@@ -68,29 +51,17 @@ const getSupabase = () => {
 const checkSupabase = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const supabase = getSupabase();
   if (!supabase) {
-    const sanitize = (val: string | undefined) => (val || '').trim().replace(/['"\s\u200B-\u200D\uFEFF]/g, '');
-    const url = sanitize(process.env.SUPABASE_URL);
-    const serviceKey = sanitize(process.env.SUPABASE_SERVICE_ROLE_KEY);
-    const anonKey = sanitize(process.env.SUPABASE_ANON_KEY);
-    
+    const { url, serviceKey, anonKey } = getSupabaseEnv();
     const missing = [];
     if (!url) missing.push('SUPABASE_URL');
     if (!serviceKey && !anonKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
     
-    let detail = "";
-    if (url && !url.startsWith('https://')) {
-      detail = " A URL deve começar com https://";
-    } else if (missing.length === 0) {
-      detail = " Erro interno ao inicializar o cliente.";
-    }
-
     return res.status(500).json({ 
-      error: `O banco de dados (Supabase) não está configurado. Verifique as chaves no menu Settings: ${missing.join(', ') || 'Erro desconhecido'}.${detail}`,
+      error: `O banco de dados (Supabase) não está configurado. Verifique as chaves no menu Settings: ${missing.join(', ') || 'Erro de inicialização'}.`,
       debug_info: {
-        url_present: !!url,
-        service_key_present: !!serviceKey,
-        anon_key_present: !!anonKey,
-        url_valid: url ? url.startsWith('https://') : false
+        url_detected: !!url,
+        key_detected: !!(serviceKey || anonKey),
+        env_keys: Object.keys(process.env).filter(k => k.includes('SUPABASE'))
       }
     });
   }
