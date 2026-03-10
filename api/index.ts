@@ -9,22 +9,34 @@ const app = express();
 let supabaseClient: any = null;
 const getSupabase = () => {
   if (supabaseClient) return supabaseClient;
-  const url = (process.env.SUPABASE_URL || '').trim();
-  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
-  const anonKey = (process.env.SUPABASE_ANON_KEY || '').trim();
+  
+  // Limpeza profunda das variáveis de ambiente para remover espaços, aspas ou caracteres invisíveis
+  const sanitize = (val: string | undefined) => (val || '').trim().replace(/['"\s\u200B-\u200D\uFEFF]/g, '');
+  
+  const url = sanitize(process.env.SUPABASE_URL);
+  const serviceKey = sanitize(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const anonKey = sanitize(process.env.SUPABASE_ANON_KEY);
   const key = serviceKey || anonKey;
   
   if (!url || !key) {
     const missing = [];
     if (!url) missing.push('SUPABASE_URL');
     if (!key) missing.push('SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_ANON_KEY');
-    if (missing.length > 0) {
-      console.warn(`[Supabase] Configuração incompleta. Faltando: ${missing.join(', ')}`);
-    }
+    console.error(`[Supabase] Configuração incompleta. Faltando: ${missing.join(', ')}`);
     return null;
   }
+
+  if (!url.startsWith('https://')) {
+    console.error('[Supabase] URL inválida. Deve começar com https://');
+    return null;
+  }
+
   try {
-    supabaseClient = createClient(url, key);
+    supabaseClient = createClient(url, key, {
+      auth: {
+        persistSession: false
+      }
+    });
     return supabaseClient;
   } catch (e) {
     console.error('[Supabase] Init error:', e);
@@ -36,12 +48,24 @@ const getSupabase = () => {
 const checkSupabase = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const supabase = getSupabase();
   if (!supabase) {
-    const missing = [];
-    if (!process.env.SUPABASE_URL) missing.push('SUPABASE_URL');
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.SUPABASE_ANON_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+    const sanitize = (val: string | undefined) => (val || '').trim().replace(/['"\s\u200B-\u200D\uFEFF]/g, '');
+    const url = sanitize(process.env.SUPABASE_URL);
+    const serviceKey = sanitize(process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const anonKey = sanitize(process.env.SUPABASE_ANON_KEY);
     
+    const missing = [];
+    if (!url) missing.push('SUPABASE_URL');
+    if (!serviceKey && !anonKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+    
+    let detail = "";
+    if (url && !url.startsWith('https://')) {
+      detail = " A URL deve começar com https://";
+    } else if (missing.length === 0) {
+      detail = " Erro interno ao inicializar o cliente.";
+    }
+
     return res.status(500).json({ 
-      error: `O banco de dados (Supabase) não está configurado. Verifique as chaves no menu Settings: ${missing.join(', ')}.` 
+      error: `O banco de dados (Supabase) não está configurado. Verifique as chaves no menu Settings: ${missing.join(', ') || 'Erro desconhecido'}.${detail}` 
     });
   }
   (req as any).supabase = supabase;
@@ -234,7 +258,10 @@ app.use(cors());
       if (error) {
         console.error('[LOGIN] Erro ao buscar usuário:', error);
         if (error.code === 'PGRST116') {
-          return res.status(401).json({ error: 'Operador não encontrado.' });
+          return res.status(401).json({ error: 'Operador não encontrado. Verifique se você já criou sua conta.' });
+        }
+        if (error.message?.includes('relation "users" does not exist')) {
+          return res.status(500).json({ error: 'ERRO CRÍTICO: A tabela "users" não foi criada no Supabase. Por favor, execute o script SQL de configuração.' });
         }
         throw error;
       }
