@@ -6,13 +6,16 @@ let supabaseInstance: any = null;
 export const getSupabase = () => {
   if (supabaseInstance) return supabaseInstance;
 
-  const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || '';
-  const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || '';
+  // Tenta buscar de várias formas possíveis no ambiente do AI Studio
+  const env = (import.meta as any).env || {};
+  const supabaseUrl = env.VITE_SUPABASE_URL || '';
+  const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || '';
+
+  console.log('[Supabase Debug] Verificando chaves no frontend...');
+  console.log('[Supabase Debug] URL encontrada:', supabaseUrl ? `${supabaseUrl.substring(0, 15)}...` : 'NÃO ENCONTRADA');
+  console.log('[Supabase Debug] Key encontrada:', supabaseAnonKey ? `${supabaseAnonKey.substring(0, 10)}...` : 'NÃO ENCONTRADA');
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    // Retornamos um objeto mockado ou lançamos erro apenas quando tentarem usar
-    // Para evitar que o app quebre no carregamento do módulo
-    console.warn('Supabase URL ou Anon Key não configurados no menu Settings.');
     return null;
   }
 
