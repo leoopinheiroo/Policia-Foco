@@ -224,6 +224,28 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
                 )}
              </div>
           </form>
+          
+          <div className="mt-8 pt-6 border-t border-slate-100">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 text-center">Ferramentas de Suporte</p>
+            <button 
+              onClick={async () => {
+                try {
+                  const [healthRes, debugRes] = await Promise.all([
+                    fetch('/api/health'),
+                    fetch('/api/debug-config')
+                  ]);
+                  const health = await healthRes.json();
+                  const debug = await debugRes.json();
+                  alert(`--- DIAGNÓSTICO DO SISTEMA ---\n\nStatus API: ${health.status}\nSupabase Conectado: ${health.supabase ? 'SIM' : 'NÃO'}\nStatus do Banco: ${health.database_connectivity}\nErro do Banco: ${health.database_error || 'Nenhum'}\n\n--- CHAVES (SETTINGS) ---\nURL: ${debug.url_status}\nService Key: ${debug.service_key_status}\n\nSe "Status do Banco" for "error", verifique se as chaves no menu Settings do AI Studio estão corretas.`);
+                } catch (e) {
+                  alert('Erro crítico: Não foi possível conectar ao servidor backend.');
+                }
+              }}
+              className="w-full py-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-black text-slate-500 transition-all uppercase tracking-widest"
+            >
+              🔍 Executar Diagnóstico de Conexão
+            </button>
+          </div>
        </div>
        <style>{`
           @keyframes shake {

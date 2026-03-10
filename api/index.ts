@@ -11,14 +11,26 @@ const getSupabase = () => {
   if (supabaseClient) return supabaseClient;
   
   // Limpeza profunda das variáveis de ambiente para remover espaços, aspas ou caracteres invisíveis
-  const sanitize = (val: string | undefined) => (val || '').trim().replace(/['"\s\u200B-\u200D\uFEFF]/g, '');
+  const sanitize = (val: string | undefined, name: string) => {
+    let cleaned = (val || '').trim();
+    // Remove aspas comuns que usuários às vezes colam junto
+    cleaned = cleaned.replace(/^['"]|['"]$/g, '');
+    // Se o usuário colou "NOME_DA_VARIAVEL=valor", extraímos apenas o valor
+    if (cleaned.includes('=') && cleaned.toUpperCase().startsWith(name.toUpperCase() + '=')) {
+      cleaned = cleaned.split('=')[1];
+    }
+    // Remove caracteres invisíveis e espaços restantes
+    return cleaned.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+  };
   
-  const url = sanitize(process.env.SUPABASE_URL);
-  const serviceKey = sanitize(process.env.SUPABASE_SERVICE_ROLE_KEY);
-  const anonKey = sanitize(process.env.SUPABASE_ANON_KEY);
+  const url = sanitize(process.env.SUPABASE_URL, 'SUPABASE_URL');
+  const serviceKey = sanitize(process.env.SUPABASE_SERVICE_ROLE_KEY, 'SUPABASE_SERVICE_ROLE_KEY');
+  const anonKey = sanitize(process.env.SUPABASE_ANON_KEY, 'SUPABASE_ANON_KEY');
   const key = serviceKey || anonKey;
   
-  console.log(`[Supabase] Verificando configuração: URL=${url ? 'OK' : 'MISSING'}, Key=${serviceKey ? 'SERVICE_ROLE' : (anonKey ? 'ANON' : 'MISSING')}`);
+  console.log(`[Supabase] Diagnóstico: URL=${url ? (url.startsWith('http') ? 'Válida' : 'Inválida (sem http)') : 'Faltando'}, Key=${serviceKey ? 'SERVICE_ROLE' : (anonKey ? 'ANON' : 'Faltando')}`);
+  if (url) console.log(`[Supabase] URL detectada (primeiros 15 chars): ${url.substring(0, 15)}...`);
+  if (key) console.log(`[Supabase] Key detectada (primeiros 10 chars): ${key.substring(0, 10)}...`);
 
   if (!url || !key) {
     const missing = [];
@@ -34,14 +46,20 @@ const getSupabase = () => {
   }
 
   try {
+    console.log(`[Supabase] Tentando inicializar createClient com URL: ${url.substring(0, 20)}...`);
     supabaseClient = createClient(url, key, {
       auth: {
         persistSession: false
       }
     });
+    if (supabaseClient) {
+      console.log('[Supabase] Cliente inicializado com sucesso.');
+    } else {
+      console.error('[Supabase] createClient retornou nulo sem lançar erro.');
+    }
     return supabaseClient;
-  } catch (e) {
-    console.error('[Supabase] Init error:', e);
+  } catch (e: any) {
+    console.error('[Supabase] Erro fatal na inicialização do createClient:', e.message || e);
     return null;
   }
 };
@@ -67,7 +85,13 @@ const checkSupabase = (req: express.Request, res: express.Response, next: expres
     }
 
     return res.status(500).json({ 
-      error: `O banco de dados (Supabase) não está configurado. Verifique as chaves no menu Settings: ${missing.join(', ') || 'Erro desconhecido'}.${detail}` 
+      error: `O banco de dados (Supabase) não está configurado. Verifique as chaves no menu Settings: ${missing.join(', ') || 'Erro desconhecido'}.${detail}`,
+      debug_info: {
+        url_present: !!url,
+        service_key_present: !!serviceKey,
+        anon_key_present: !!anonKey,
+        url_valid: url ? url.startsWith('https://') : false
+      }
     });
   }
   (req as any).supabase = supabase;
@@ -84,7 +108,33 @@ const getStripe = () => {
 
 app.use(cors());
 
-  app.get('/api/health', (req, res) => {
+  app.get('/api/debug-config', (req, res) => {
+    const sanitize = (val: string | undefined, name: string) => {
+      let cleaned = (val || '').trim();
+      cleaned = cleaned.replace(/^['"]|['"]$/g, '');
+      if (cleaned.includes('=') && cleaned.toUpperCase().startsWith(name.toUpperCase() + '=')) {
+        cleaned = cleaned.split('=')[1];
+      }
+      return cleaned.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+    };
+
+    const url = sanitize(process.env.SUPABASE_URL, 'SUPABASE_URL');
+    const serviceKey = sanitize(process.env.SUPABASE_SERVICE_ROLE_KEY, 'SUPABASE_SERVICE_ROLE_KEY');
+    const anonKey = sanitize(process.env.SUPABASE_ANON_KEY, 'SUPABASE_ANON_KEY');
+
+    res.json({
+      url_status: url ? (url.startsWith('https://') ? 'Válida' : 'Inválida (deve começar com https://)') : 'Faltando',
+      url_preview: url ? `${url.substring(0, 15)}...` : null,
+      service_key_status: serviceKey ? 'Presente' : 'Faltando',
+      service_key_preview: serviceKey ? `${serviceKey.substring(0, 10)}...` : null,
+      anon_key_status: anonKey ? 'Presente' : 'Faltando',
+      anon_key_preview: anonKey ? `${anonKey.substring(0, 10)}...` : null,
+      raw_keys_present: Object.keys(process.env).filter(k => k.startsWith('SUPABASE_')),
+      node_env: process.env.NODE_ENV
+    });
+  });
+
+  app.get('/api/health', async (req, res) => {
     const supabase = getSupabase();
     const missingKeys = [];
     if (!process.env.SUPABASE_URL) missingKeys.push('SUPABASE_URL');
@@ -92,10 +142,31 @@ app.use(cors());
     if (!process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_SECRET) missingKeys.push('STRIPE_SECRET_KEY');
     if (!process.env.GEMINI_API_KEY && !process.env.API_KEY) missingKeys.push('GEMINI_API_KEY');
 
+    let dbStatus = 'not_initialized';
+    let dbError = null;
+
+    if (supabase) {
+      try {
+        // Tenta uma query simples para verificar conectividade
+        const { error } = await supabase.from('users').select('count', { count: 'exact', head: true });
+        if (error) {
+          dbStatus = 'error';
+          dbError = error.message;
+        } else {
+          dbStatus = 'connected';
+        }
+      } catch (e: any) {
+        dbStatus = 'exception';
+        dbError = e.message;
+      }
+    }
+
     res.json({ 
       status: 'ok', 
       message: 'Server is running', 
       supabase: !!supabase,
+      database_connectivity: dbStatus,
+      database_error: dbError,
       missing_keys: missingKeys,
       env: process.env.NODE_ENV 
     });

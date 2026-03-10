@@ -49,6 +49,15 @@ const App: React.FC = () => {
     }
     try {
       const response = await fetch(`/api/user/status?email=${encodeURIComponent(email)}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Status check failed:', errorData);
+        // Se o erro for de configuração do banco, podemos mostrar um alerta ou estado específico
+        if (errorData.error && errorData.error.includes('Supabase')) {
+          // Opcional: setar um estado de erro global
+        }
+        return;
+      }
       const data = await response.json();
       if (data.status === 'active') {
         setIsPaid(true);

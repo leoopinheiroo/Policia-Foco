@@ -86,6 +86,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         <div className="p-4 border-t border-slate-800 space-y-2">
+          {/* Debug Panel for Developer */}
+          {(userName.includes('Dev') || userType === 'ELITE') && (
+            <div className="mb-4 p-3 bg-slate-950 rounded-xl border border-white/5">
+              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2">Status do Sistema</p>
+              <button 
+                onClick={async () => {
+                  try {
+                    const [healthRes, debugRes] = await Promise.all([
+                      fetch('/api/health'),
+                      fetch('/api/debug-config')
+                    ]);
+                    const health = await healthRes.json();
+                    const debug = await debugRes.json();
+                    alert(`Status: ${health.status}\nSupabase: ${health.supabase ? 'OK' : 'FALHA'}\nDB: ${health.database_connectivity}\nErro: ${health.database_error || 'Nenhum'}\n\nURL: ${debug.url_status}\nKey: ${debug.service_key_status}`);
+                  } catch (e) {
+                    alert('Erro ao conectar com a API');
+                  }
+                }}
+                className="w-full py-2 bg-white/5 hover:bg-white/10 rounded-lg text-[9px] font-black text-slate-400 transition-all"
+              >
+                DIAGNÓSTICO TÉCNICO
+              </button>
+            </div>
+          )}
           <div className="bg-slate-800 rounded-lg p-3 flex items-center gap-3">
             <div className={`w-8 h-8 rounded-full bg-gradient-to-tr ${isGuest ? 'from-blue-400 to-indigo-500' : 'from-yellow-400 to-orange-500'} flex items-center justify-center text-slate-900 font-bold text-xs`}>
               {userName.substring(0, 2).toUpperCase()}
