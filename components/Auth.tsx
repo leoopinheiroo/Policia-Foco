@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../services/supabase';
 
 interface AuthProps {
   mode: 'LOGIN' | 'SIGNUP' | 'FORGOT_PASSWORD';
@@ -7,7 +8,7 @@ interface AuthProps {
   onGoLogin: () => void;
   onGoSignup: () => void;
   onGoForgot: () => void;
-  onSuccess: (email: string) => void;
+  onSuccess: (email: string, name?: string) => void;
   onBack: () => void;
 }
 
@@ -18,6 +19,7 @@ const REMEMBER_ME_KEY = 'PF_REMEMBER';
 export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup, onGoForgot, onSuccess, onBack }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [saveCredentials, setSaveCredentials] = useState(() => localStorage.getItem(REMEMBER_ME_KEY) === 'true');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,39 +41,59 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
     setSuccessMessage(null);
 
     try {
-      let endpoint = '';
-      if (mode === 'LOGIN') endpoint = '/api/auth/login';
-      else if (mode === 'SIGNUP') endpoint = '/api/auth/register';
-      else if (mode === 'FORGOT_PASSWORD') endpoint = '/api/auth/forgot-password';
+      if (mode === 'LOGIN') {
+        const { data, error: authError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      const form = e.currentTarget as HTMLFormElement;
-      const formData = new FormData(form);
-      const name = formData.get('name');
+        if (authError) throw authError;
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name }),
-      });
+        // Após o login com Supabase Auth, buscamos o perfil na tabela users
+        const { data: profile } = await supabase
+          .from('users')
+          .select('name')
+          .eq('email', email)
+          .single();
 
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const text = await response.text();
-        console.error("Non-JSON response:", text);
-        // Se for um erro do Supabase ou do servidor que retornou texto, tentamos mostrar o começo dele
-        const snippet = text.substring(0, 100).replace(/<[^>]*>?/gm, '');
-        throw new Error(`[v2] ERRO NO SERVIDOR (${response.status}): ${snippet || 'RESPOSTA INVÁLIDA'}`);
-      }
+        onAuth();
+        onSuccess(email, profile?.name || 'Operador');
+      } else if (mode === 'SIGNUP') {
+        const { data, error: authError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: name,
+            },
+          },
+        });
 
-      const data = await response.json();
+        if (authError) throw authError;
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro na operação.');
-      }
+        // Criamos o registro na tabela users via API para garantir que o backend processe
+        // (Ou poderíamos fazer via Supabase client se o RLS permitir)
+        const response = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, name }),
+        });
 
-      if (mode === 'FORGOT_PASSWORD') {
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Erro ao criar perfil.');
+        }
+
+        setSuccessMessage("CONTA CRIADA! VERIFIQUE SEU E-MAIL PARA CONFIRMAÇÃO (SE ATIVADO NO SUPABASE).");
+        onAuth();
+        onSuccess(email, name);
+      } else if (mode === 'FORGOT_PASSWORD') {
+        const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+
+        if (authError) throw authError;
         setSuccessMessage("EMAIL DE RECUPERAÇÃO ENVIADO COM SUCESSO! VERIFIQUE SUA CAIXA DE ENTRADA.");
-        return;
       }
 
       // Persistência de Credenciais se o usuário marcou a opção
@@ -84,12 +106,6 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
         localStorage.removeItem(SAVED_PASSWORD_KEY);
         localStorage.setItem(REMEMBER_ME_KEY, 'false');
       }
-
-      onAuth();
-      onSuccess(email);
-      
-      // If it's a new signup, we should redirect to checkout immediately
-      // This will be handled in App.tsx based on the status
     } catch (err: any) {
       setError(err.message.toUpperCase());
     } finally {
@@ -135,6 +151,8 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
                       name="name"
                       type="text" 
                       autoComplete="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
                       className="w-full bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition text-sm font-medium placeholder:text-slate-700"
                       placeholder="Ex: Leonardo"
                    />

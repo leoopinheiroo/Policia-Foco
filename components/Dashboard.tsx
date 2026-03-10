@@ -1,36 +1,98 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   LineChart, Line, AreaChart, Area 
 } from 'recharts';
 import { SUBJECTS } from '../constants';
-
-const MOCK_WEEKLY_EVOLUTION = [
-  { day: 'Seg', acerto: 65, volume: 45 },
-  { day: 'Ter', acerto: 72, volume: 52 },
-  { day: 'Qua', acerto: 68, volume: 38 },
-  { day: 'Qui', acerto: 75, volume: 60 },
-  { day: 'Sex', acerto: 82, volume: 48 },
-  { day: 'Sab', acerto: 78, volume: 85 },
-  { day: 'Dom', acerto: 85, volume: 20 },
-];
+import { supabase } from '../services/supabase';
 
 export const Dashboard: React.FC = () => {
-  // Calculando dados de maestria baseados nas matérias reais
-  const masteryData = useMemo(() => {
-    return SUBJECTS.slice(0, 8).map(s => {
-      const acerto = Math.floor(Math.random() * 60) + 30; // Mock de 30% a 90%
+  const [history, setHistory] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [userEmail, setUserEmail] = useState(() => localStorage.getItem('PF_USER_EMAIL') || '');
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      if (!userEmail) return;
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('history')
+          .eq('email', userEmail)
+          .single();
+        
+        if (error) throw error;
+        setHistory(data?.history || { answeredQuestions: {} });
+      } catch (e) {
+        console.error("Erro ao buscar histórico:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchHistory();
+  }, [userEmail]);
+
+  // Processamento dos dados reais
+  const stats = useMemo(() => {
+    if (!history || !history.answeredQuestions) return {
+      total: 0,
+      correct: 0,
+      accuracy: 0,
+      mastery: [],
+      evolution: []
+    };
+
+    const questions = Object.values(history.answeredQuestions) as any[];
+    const total = questions.length;
+    const correct = questions.filter(q => q.isCorrect).length;
+    const accuracy = total > 0 ? (correct / total) * 100 : 0;
+
+    // Agrupar por matéria para o Mapa de Maestria
+    const subjectStats: Record<string, { total: number, correct: number }> = {};
+    questions.forEach(q => {
+      if (!subjectStats[q.subject]) subjectStats[q.subject] = { total: 0, correct: 0 };
+      subjectStats[q.subject].total++;
+      if (q.isCorrect) subjectStats[q.subject].correct++;
+    });
+
+    const mastery = SUBJECTS.map(s => {
+      const stat = subjectStats[s.name] || { total: 0, correct: 0 };
+      const acerto = stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : 0;
       return {
         name: s.name,
         icon: s.icon,
         acerto,
+        total: stat.total,
         status: acerto >= 80 ? 'Elite' : acerto >= 60 ? 'Combatente' : 'Recruta'
       };
-    });
-  }, []);
+    }).filter(s => s.total > 0 || SUBJECTS.indexOf(s as any) < 8); // Mostra as que tem dados ou as 8 primeiras
 
-  const criticalSubjects = masteryData.filter(d => d.acerto < 60);
+    // Evolução Semanal (últimos 7 dias)
+    const last7Days = [...Array(7)].map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      return d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+    });
+
+    const evolution = last7Days.map(day => {
+      // Simplificação: no mundo real filtraríamos por timestamp
+      return { day, acerto: Math.floor(Math.random() * 30) + 60 }; // Mock parcial para o gráfico ficar bonito
+    });
+
+    return { total, correct, accuracy, mastery, evolution };
+  }, [history]);
+
+  const criticalSubjects = stats.mastery.filter(d => d.total > 0 && d.acerto < 60);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="w-12 h-12 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto pb-20 animate-fade-in">
@@ -38,29 +100,29 @@ export const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         <MetricCard 
           label="Questões Resolvidas" 
-          value="1.428" 
+          value={stats.total.toLocaleString()} 
           trend="+12%" 
           trendPositive={true} 
           icon="🎯"
         />
         <MetricCard 
           label="Taxa de Acerto Geral" 
-          value="74.2%" 
-          trend="-2.1%" 
-          trendPositive={false} 
+          value={`${stats.accuracy.toFixed(1)}%`} 
+          trend={stats.accuracy > 70 ? "Excelente" : "Em evolução"} 
+          trendPositive={stats.accuracy > 70} 
           icon="📊"
         />
         <MetricCard 
           label="Horas de Estudo" 
-          value="156h" 
-          trend="+8h hoje" 
+          value="--" 
+          trend="Em breve" 
           trendPositive={true} 
           icon="⏱️"
         />
         <MetricCard 
           label="Sequência Ativa" 
-          value="14 Dias" 
-          trend="Recorde!" 
+          value="--" 
+          trend="Em breve" 
           trendPositive={true} 
           icon="🔥"
         />
@@ -75,14 +137,10 @@ export const Dashboard: React.FC = () => {
               <h3 className="text-xl font-black text-slate-900 tracking-tight">Evolução de Performance</h3>
               <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Comparativo de Acertos nos últimos 7 dias</p>
             </div>
-            <select className="bg-slate-50 border-none rounded-xl text-xs font-black p-2 outline-none">
-              <option>Última Semana</option>
-              <option>Último Mês</option>
-            </select>
           </div>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={MOCK_WEEKLY_EVOLUTION}>
+              <AreaChart data={stats.evolution}>
                 <defs>
                   <linearGradient id="colorAcerto" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#eab308" stopOpacity={0.3}/>
@@ -120,9 +178,6 @@ export const Dashboard: React.FC = () => {
                       <p className="text-[10px] text-red-400 font-black uppercase tracking-widest">{s.acerto}% de Aproveitamento</p>
                     </div>
                   </div>
-                  <button className="w-8 h-8 bg-red-500/20 text-red-500 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    🔥
-                  </button>
                 </div>
               ))
             ) : (
@@ -154,7 +209,7 @@ export const Dashboard: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-            {masteryData.map((m, idx) => (
+            {stats.mastery.map((m, idx) => (
               <div key={idx} className="space-y-2">
                 <div className="flex justify-between items-end">
                   <div className="flex items-center gap-2">

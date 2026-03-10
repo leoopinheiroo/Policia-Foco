@@ -15,6 +15,8 @@ import { Auth } from './components/Auth';
 import { LandingPage } from './components/LandingPage';
 import { Checkout } from './components/Checkout';
 
+import { supabase } from './services/supabase';
+
 const App: React.FC = () => {
   // Estado de autenticação persistente
   const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('PF_LOGGED') === 'true');
@@ -23,6 +25,27 @@ const App: React.FC = () => {
   const [userName, setUserName] = useState(() => localStorage.getItem('PF_USER_NAME') || 'Operador');
   const [selectedPlan, setSelectedPlan] = useState<'MONTHLY' | 'ANNUAL'>('ANNUAL');
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+
+  useEffect(() => {
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        setIsLoggedIn(true);
+        setUserEmail(session.user.email || '');
+        // Fetch profile name if available
+        supabase.from('users').select('name').eq('email', session.user.email).single()
+          .then(({ data }) => {
+            if (data?.name) setUserName(data.name);
+          });
+      } else {
+        setIsLoggedIn(false);
+        setUserEmail('');
+        setIsPaid(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
   
   const [currentView, setCurrentView] = useState<ViewState>('LANDING');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -138,7 +161,8 @@ const App: React.FC = () => {
     setFilteredQuestions(questions);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setIsLoggedIn(false);
     setIsPaid(false);
     localStorage.removeItem('PF_LOGGED');
