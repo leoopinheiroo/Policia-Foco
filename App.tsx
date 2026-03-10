@@ -25,6 +25,7 @@ const App: React.FC = () => {
   const [userName, setUserName] = useState(() => localStorage.getItem('PF_USER_NAME') || 'Operador');
   const [selectedPlan, setSelectedPlan] = useState<'MONTHLY' | 'ANNUAL'>('ANNUAL');
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     // Listen for auth state changes
@@ -154,16 +155,22 @@ const App: React.FC = () => {
   };
 
   const handleFilterApply = async (filters: any) => {
-    setCurrentView('QUESTIONS');
-    setSelectedTopic('Filtro Personalizado');
-    setSelectedSubjectId(null);
-    
-    // Here we would call fetchFilteredQuestions from geminiService
-    // But since it's an async call that returns questions, we should handle it in a loading state
-    // For now, let's just pass the filters to QuestionRunner or fetch them here
-    const { fetchFilteredQuestions } = await import('./services/geminiService');
-    const questions = await fetchFilteredQuestions(filters);
-    setFilteredQuestions(questions);
+    setIsLoading(true);
+    try {
+      setCurrentView('QUESTIONS');
+      setSelectedTopic('Filtro Personalizado');
+      setSelectedSubjectId(null);
+      
+      const { fetchFilteredQuestions } = await import('./services/geminiService');
+      const questions = await fetchFilteredQuestions(filters);
+      setFilteredQuestions(questions);
+    } catch (error) {
+      console.error("Erro ao aplicar filtro:", error);
+      alert("Ocorreu um erro ao buscar as questões. Por favor, tente novamente.");
+      setCurrentView('SUBJECTS');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -339,16 +346,23 @@ const App: React.FC = () => {
           <GeniusIA 
             userHistory={userHistory} 
             onStartIntensive={async (subject, topic) => {
-              const { fetchFilteredQuestions } = await import('./services/geminiService');
-              const questions = await fetchFilteredQuestions({ 
-                materia: subject,
-                assunto: topic
-              });
-              // Pegamos apenas 20 se houver mais
-              setFilteredQuestions(questions.slice(0, 20));
-              setSelectedTopic(topic ? `Intensivo: ${topic}` : `Intensivo: ${subject}`);
-              setSelectedSubjectId(null);
-              setCurrentView('QUESTIONS');
+              setIsLoading(true);
+              try {
+                const { fetchFilteredQuestions } = await import('./services/geminiService');
+                const questions = await fetchFilteredQuestions({ 
+                  materia: subject,
+                  assunto: topic
+                }, 20);
+                setFilteredQuestions(questions);
+                setSelectedTopic(topic ? `Intensivo: ${topic}` : `Intensivo: ${subject}`);
+                setSelectedSubjectId(null);
+                setCurrentView('QUESTIONS');
+              } catch (error) {
+                console.error("Erro ao gerar treino intensivo:", error);
+                alert("Ocorreu um erro ao gerar as questões. Por favor, tente novamente.");
+              } finally {
+                setIsLoading(false);
+              }
             }}
             onReviewQuestion={(question) => {
               setFilteredQuestions([question]);
@@ -406,14 +420,24 @@ const App: React.FC = () => {
           <div className="flex-1 p-6 md:p-16 max-w-[1800px] mx-auto w-full">
             {renderPlatformContent()}
           </div>
+
+          {isLoading && (
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center text-center p-6 text-white">
+              <div className="w-20 h-20 border-4 border-white/10 border-t-yellow-500 rounded-full animate-spin mb-8"></div>
+              <h2 className="text-3xl font-black tracking-tighter mb-2 italic">GERANDO TREINAMENTO IA</h2>
+              <p className="text-slate-400 max-w-md font-medium uppercase text-[10px] tracking-widest">
+                Nossa inteligência está selecionando as melhores questões para o seu perfil...
+              </p>
+            </div>
+          )}
         </main>
       </div>
     );
   }
 
   if (currentView === 'LANDING') return <LandingPage onStart={handleStart} onLogin={() => setCurrentView('LOGIN')} />;
-  if (currentView === 'LOGIN') return <Auth mode="LOGIN" onAuth={() => setIsLoggedIn(true)} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
-  if (currentView === 'SIGNUP') return <Auth mode="SIGNUP" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
+  if (currentView === 'LOGIN') return <Auth mode="LOGIN" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
+  if (currentView === 'SIGNUP') return <Auth mode="SIGNUP" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
   if (currentView === 'FORGOT_PASSWORD') return <Auth mode="FORGOT_PASSWORD" onAuth={() => {}} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => {}} onSuccess={() => {}} onBack={() => setCurrentView('LOGIN')} />;
   if (currentView === 'CHECKOUT') return <Checkout initialPlan={selectedPlan} onPaymentComplete={() => { setIsPaid(true); setCurrentView('HOME'); }} onBack={() => setCurrentView('LANDING')} />;
 
@@ -423,13 +447,16 @@ const App: React.FC = () => {
 
 // Componente de Erro para evitar tela branca total
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
-  constructor(props: any) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+  state = { hasError: false, error: null };
+
   static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
   }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
   render() {
     if (this.state.hasError) {
       return (

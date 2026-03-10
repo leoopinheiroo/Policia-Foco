@@ -93,7 +93,7 @@ export interface QuestionFilters {
   banca?: string;
   ano?: number;
   status?: 'TODAS' | 'RESOLVIDAS' | 'NAO_RESOLVIDAS' | 'ACERTEI' | 'ERREI';
-  tipo?: QuestionType;
+  tipos?: QuestionType[];
 }
 
 export interface EssayFeedback {

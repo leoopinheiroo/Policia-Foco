@@ -22,6 +22,15 @@ export const QuestionFilter: React.FC<QuestionFilterProps> = ({ onFilter }) => {
     onFilter(cleared);
   };
 
+  const toggleTipo = (tipo: QuestionType) => {
+    const currentTipos = filters.tipos || [];
+    if (currentTipos.includes(tipo)) {
+      setFilters({ ...filters, tipos: currentTipos.filter(t => t !== tipo) });
+    } else {
+      setFilters({ ...filters, tipos: [...currentTipos, tipo] });
+    }
+  };
+
   return (
     <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-200 p-8 mb-10 animate-fade-in">
       <div className="flex items-center justify-between mb-8">
@@ -58,6 +67,33 @@ export const QuestionFilter: React.FC<QuestionFilterProps> = ({ onFilter }) => {
           </div>
         </div>
 
+        {/* Estilo de Pergunta */}
+        <div className="col-span-1 md:col-span-3">
+          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Estilo de Pergunta</label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => toggleTipo('MULTIPLA_ESCOLHA')}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2
+                ${filters.tipos?.includes('MULTIPLA_ESCOLHA') 
+                  ? 'bg-slate-950 border-slate-950 text-white shadow-lg' 
+                  : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'}
+              `}
+            >
+              Múltipla Escolha (ABCDE)
+            </button>
+            <button
+              onClick={() => toggleTipo('CERTO_ERRADO')}
+              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2
+                ${filters.tipos?.includes('CERTO_ERRADO') 
+                  ? 'bg-slate-950 border-slate-950 text-white shadow-lg' 
+                  : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'}
+              `}
+            >
+              Certo / Errado (CESPE/Quadrix)
+            </button>
+          </div>
+        </div>
+
         {/* Disciplina */}
         <div>
           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Disciplina</label>
@@ -84,20 +120,6 @@ export const QuestionFilter: React.FC<QuestionFilterProps> = ({ onFilter }) => {
             {filters.materia && SUBJECTS.find(s => s.name === filters.materia)?.topics.map(t => (
               <option key={t} value={t}>{t}</option>
             ))}
-          </select>
-        </div>
-
-        {/* Tipo de Questão */}
-        <div>
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Modalidade</label>
-          <select
-            value={filters.tipo || ''}
-            onChange={(e) => setFilters({ ...filters, tipo: e.target.value as QuestionType || undefined })}
-            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold text-slate-700 outline-none focus:border-yellow-500 transition-all"
-          >
-            <option value="">Todas as Modalidades</option>
-            <option value="CERTO_ERRADO">Certo / Errado</option>
-            <option value="MULTIPLA_ESCOLHA">Múltipla Escolha</option>
           </select>
         </div>
 

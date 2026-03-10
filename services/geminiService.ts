@@ -13,7 +13,7 @@ export const fetchFilteredQuestions = async (
       filters.assunto ? `Assunto: ${filters.assunto}` : '',
       filters.banca ? `Banca: ${filters.banca}` : 'Banca: CEBRASPE ou FGV',
       filters.ano ? `Ano: ${filters.ano}` : '',
-      filters.tipo ? `Tipo: ${filters.tipo}` : ''
+      filters.tipos && filters.tipos.length > 0 ? `Estilo de Pergunta: ${filters.tipos.map(t => t === 'MULTIPLA_ESCOLHA' ? 'Múltipla Escolha (5 alternativas ABCDE)' : 'Certo/Errado').join(' e ')}` : ''
     ].filter(Boolean).join(', ');
 
     const response = await getAi().models.generateContent({

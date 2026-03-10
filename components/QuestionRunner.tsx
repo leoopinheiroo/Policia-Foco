@@ -63,15 +63,16 @@ const StructuredCommentary: React.FC<{ text: string }> = ({ text }) => {
 };
 
 export const QuestionRunner: React.FC<QuestionRunnerProps> = ({ 
+  initialQuestions,
   subject, 
   topic, 
   userEmail,
   onBack 
 }) => {
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questions, setQuestions] = useState<Question[]>(initialQuestions || []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(!initialQuestions || initialQuestions.length === 0);
   const [isPrefetching, setIsPrefetching] = useState(false);
   const startTimeRef = useRef<number>(Date.now());
 
@@ -132,6 +133,17 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
 
   useEffect(() => {
     const init = async () => {
+      // Se já temos questões iniciais, não precisamos carregar a primeira
+      if (initialQuestions && initialQuestions.length > 0) {
+        setQuestions(initialQuestions);
+        setIsInitialLoading(false);
+        // Opcional: prefetch mais questões se tivermos poucas
+        if (initialQuestions.length < 5) {
+          prefetchNext();
+        }
+        return;
+      }
+
       setIsInitialLoading(true);
       try {
         setQuestions([]);
@@ -156,7 +168,7 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
       }
     };
     init();
-  }, [subject, topic, prefetchNext]);
+  }, [subject, topic, prefetchNext, initialQuestions]);
 
   useEffect(() => {
     if (!isInitialLoading && (questions.length - currentIndex) < 3) {
