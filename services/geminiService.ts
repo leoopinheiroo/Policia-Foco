@@ -85,6 +85,27 @@ const getAi = () => {
 };
 
 const cleanJson = (text: string): string => {
+  // Tenta extrair o objeto JSON entre as chaves ou colchetes
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  const firstBracket = text.indexOf('[');
+  const lastBracket = text.lastIndexOf(']');
+
+  let start = -1;
+  let end = -1;
+
+  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+    start = firstBrace;
+    end = lastBrace;
+  } else if (firstBracket !== -1) {
+    start = firstBracket;
+    end = lastBracket;
+  }
+
+  if (start !== -1 && end !== -1 && end > start) {
+    return text.substring(start, end + 1);
+  }
+
   return text.replace(/```json/g, '').replace(/```/g, '').trim();
 };
 
@@ -236,7 +257,7 @@ export const generateQuestionsForSubject = async (
 export const correctEssayWithAi = async (essay: string, theme: string): Promise<EssayFeedback> => {
   return withRetry(async () => {
     const response = await getAi().models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: `PERSONA: Professor de Redação Especialista em Concursos Policiais (Bancas CESPE/Cebraspe, FGV, VUNESP).
       MISSÃO: Corrigir a redação abaixo de forma rigorosa, simulando o espelho de correção oficial.
       
