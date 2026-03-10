@@ -256,7 +256,7 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
                    `}
                  >
                    <span className={`w-10 h-10 rounded-xl flex items-center justify-center font-black shrink-0 ${answers[q.id] === idx ? 'bg-white/20' : 'bg-slate-100 text-slate-400'}`}>
-                    {String.fromCharCode(65+idx)}
+                    {q.tipo === 'CERTO_ERRADO' ? (alt.toLowerCase().includes('certo') ? 'C' : 'E') : String.fromCharCode(65+idx)}
                    </span>
                    <span className="text-lg font-medium pt-1 leading-tight">{alt}</span>
                  </button>

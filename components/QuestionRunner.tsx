@@ -276,7 +276,7 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
                       hasAnswered && isSelected ? 'bg-red-600 text-white' : 
                       'bg-slate-100 text-slate-400 group-hover:bg-slate-900 group-hover:text-white'}
                   `}>
-                    {isCertoErrado ? (idx === 0 ? 'C' : 'E') : String.fromCharCode(65 + idx)}
+                    {isCertoErrado ? (alt.toLowerCase().includes('certo') ? 'C' : 'E') : String.fromCharCode(65 + idx)}
                   </span>
                   <span className="text-2xl text-slate-800 pt-3 font-semibold leading-snug tracking-tight">{alt}</span>
                 </button>

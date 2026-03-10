@@ -25,7 +25,9 @@ export const fetchFilteredQuestions = async (
       [RESUMO DA CORRETA]
       [POR QUE AS OUTRAS ESTÃO ERRADAS?]
       [MNEMÔNICO / DICA DE OURO]
-      [CUIDADO COM A PEGADINHA!]`,
+      [CUIDADO COM A PEGADINHA!]
+      
+      IMPORTANTE: Para questões do tipo CERTO_ERRADO, as alternativas DEVEM ser ["Certo", "Errado"] nesta ordem.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -130,7 +132,8 @@ export const fetchSinglePoliceQuestion = async (
         REQUISITOS TÉCNICOS:
         - Banca: CEBRASPE ou FGV.
         - Nível: Difícil.
-        - Formato: JSON puro.`,
+        - Formato: JSON puro.
+        - Para questões CERTO_ERRADO: Alternativas devem ser obrigatoriamente ["Certo", "Errado"] nesta ordem.`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -188,7 +191,9 @@ export const generateQuestionsForSubject = async (
       [RESUMO DA CORRETA]
       [POR QUE AS OUTRAS ESTÃO ERRADAS?]
       [MNEMÔNICO / DICA DE OURO]
-      [CUIDADO COM A PEGADINHA!]`,
+      [CUIDADO COM A PEGADINHA!]
+      
+      IMPORTANTE: Para questões do tipo CERTO_ERRADO, as alternativas DEVEM ser ["Certo", "Errado"] nesta ordem.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
