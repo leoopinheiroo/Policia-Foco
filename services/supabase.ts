@@ -31,7 +31,7 @@ export const supabase = new Proxy({} as any, {
       // Se estivermos na Vercel, a mensagem deve ser diferente
       const isVercel = window.location.hostname.includes('vercel.app');
       const message = isVercel 
-        ? 'Supabase não configurado na Vercel. Adicione VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY nas "Environment Variables" do seu projeto na Vercel e faça um novo Deploy.'
+        ? 'ERRO NA VERCEL: As chaves devem começar com VITE_. Renomeie SUPABASE_URL para VITE_SUPABASE_URL e SUPABASE_ANON_KEY para VITE_SUPABASE_ANON_KEY no painel da Vercel e faça um novo Deploy.'
         : 'Supabase não configurado. Adicione VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no menu Settings do AI Studio.';
       
       throw new Error(message);
