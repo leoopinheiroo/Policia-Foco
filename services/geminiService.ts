@@ -18,7 +18,10 @@ export const fetchFilteredQuestions = async (
 
     const response = await getAi().models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Gerar um lote de ${count} questões técnicas inéditas com os seguintes filtros: ${filterDesc}.
+      contents: `Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: ${filterDesc}.
+      
+      RESTRIÇÃO CRÍTICA: Você NÃO PODE incluir questões de outras matérias. Se a matéria for Direito Penal, gere APENAS Direito Penal. Se for Raciocínio Lógico, gere APENAS Raciocínio Lógico. Misturar matérias é um erro grave.
+      
       Nível: Difícil (estilo carreiras policiais).
       
       Cada questão deve seguir a estrutura de comentário:
@@ -58,6 +61,7 @@ export const fetchFilteredQuestions = async (
     return items.map((q: any) => ({
       ...q,
       id: `filt-${Date.now()}-${Math.random()}`,
+      materia: filters.materia || q.materia,
       origem: 'IA',
       isAiGenerated: true
     }));
@@ -133,7 +137,9 @@ export const fetchSinglePoliceQuestion = async (
       const response = await getAi().models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `PERSONA: Professor Especialista em Concursos Policiais com foco em Didática e Memorização.
-        MISSÃO: Gerar 1 questão técnica inédita sobre ${topic} (${subject}).
+        MISSÃO: Gerar 1 questão técnica inédita EXCLUSIVAMENTE sobre ${topic} (${subject}).
+        
+        RESTRIÇÃO ABSOLUTA: A questão deve ser estritamente sobre ${subject}. É terminantemente proibido incluir conceitos de outras disciplinas (ex: não misture Direito com Raciocínio Lógico).
         
         REQUISITOS DO COMENTÁRIO (ESTRUTURA OBRIGATÓRIA):
         Você deve formatar o campo 'comentario' exatamente assim, usando estes títulos para eu processar visualmente:
@@ -205,7 +211,10 @@ export const generateQuestionsForSubject = async (
   return withRetry(async () => {
     const response = await getAi().models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Gerar um lote de ${count} questões técnicas inéditas para a matéria: ${subject}.
+      contents: `Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: ${subject}.
+      
+      RESTRIÇÃO CRÍTICA: Você deve gerar questões APENAS de ${subject}. Não misture com outras matérias. Se o assunto for Direito, não inclua Raciocínio Lógico ou Informática. O foco deve ser 100% na disciplina solicitada.
+      
       Nível: Difícil (estilo CEBRASPE/FGV para carreiras policiais).
       
       Cada questão deve seguir a estrutura de comentário:
@@ -339,7 +348,10 @@ export const generateFlashcardsBatch = async (
   return withRetry(async () => {
     const response = await getAi().models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Gerar ${count} flashcards de alto rendimento para a matéria: ${subject}.
+      contents: `Gerar ${count} flashcards de alto rendimento EXCLUSIVAMENTE para a matéria: ${subject}.
+      
+      RESTRIÇÃO CRÍTICA: Os flashcards devem tratar APENAS de ${subject}. É proibido misturar com outras disciplinas.
+      
       Foque em conceitos-chave, prazos legais, mnemônicos e pegadinhas recorrentes em concursos policiais.`,
       config: {
         responseMimeType: "application/json",
