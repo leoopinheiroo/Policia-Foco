@@ -258,47 +258,53 @@ export const correctEssayWithAi = async (essay: string, theme: string): Promise<
   return withRetry(async () => {
     const response = await getAi().models.generateContent({
       model: 'gemini-3.1-pro-preview',
-      contents: `PERSONA: Professor de Redação Especialista em Concursos Policiais (Bancas CESPE/Cebraspe, FGV, VUNESP).
-      MISSÃO: Corrigir a redação abaixo de forma rigorosa, simulando o espelho de correção oficial.
+      contents: `Você é um corretor profissional especializado em redações de concursos públicos brasileiros, especialmente para carreiras policiais.
+      Sua tarefa é analisar e corrigir a redação enviada pelo usuário de forma clara, técnica e objetiva, evitando respostas excessivamente longas para manter o sistema rápido.
       
       TEMA: "${theme}"
       REDAÇÃO DO ALUNO:
       ${essay}
       
-      CRITÉRIOS DE AVALIAÇÃO:
-      1. Apresentação e Legibilidade (Estrutura dissertativa-argumentativa).
-      2. Desenvolvimento do Tema (Pertinência e profundidade).
-      3. Coesão e Coerência (Uso de conectivos, pronomes, progressão textual).
-      4. Domínio da Norma Culta (Gramática, pontuação, concordância, regência).
+      REGRAS DA ANÁLISE:
+      - Considere redações dissertativo-argumentativas no padrão de concursos públicos.
+      - Avalie a redação em quatro critérios principais: Estrutura (0-25), Argumentação (0-25), Coesão e Coerência (0-25), Gramática (0-25).
+      - Identifique erros gramaticais, de crase, pontuação, concordância, regência e colocação pronominal.
+      - Para cada erro, forneça o trecho original, a correção sugerida e uma explicação breve.
+      - Se a redação estiver correta em determinado ponto, destaque como ponto forte.
+      - Mantenha explicações curtas para evitar lentidão.
       
-      REQUISITOS DA RESPOSTA:
-      - NOTA: De 0 a 100.0.
-      - DETAILED_SCORES: Forneça uma pontuação detalhada em 4 critérios: Conteúdo (0-40), Estrutura (0-20), Argumentação (0-20) e Gramática (0-20). A soma deve ser o total.
-      - MARKED_ESSAY: Retorne o texto completo da redação, mas envolva os erros em tags <u></u> (ex: <u>erro de concordância</u>).
-      - COMENTÁRIOS: Explique a nota detalhadamente, citando os critérios da banca escolhida (CESPE ou VUNESP).
-      - IMPROVEMENT_EXAMPLES: Mostre como reescrever trechos problemáticos, indicando em qual parágrafo o erro foi detectado.`,
+      REQUISITOS DA RESPOSTA (JSON):
+      - score: Nota final de 0 a 100.
+      - detailedScores: Objeto com as notas individuais (estrutura, argumentacao, coesao, gramatica, total).
+      - comments: Breve comentário sobre a qualidade geral da redação (ANÁLISE GERAL).
+      - strengths: Lista de 2 a 4 pontos positivos (PONTOS FORTES).
+      - weaknesses: Lista de problemas de estrutura ou desenvolvimento (PONTOS DE MELHORIA).
+      - grammarIssues: Lista de termos gramaticais identificados como problemas.
+      - markedEssay: Texto completo com erros envolvidos em tags <u></u>.
+      - improvementExamples: Lista de objetos com original, corrected, explanation e paragraph.
+      - recommendation: 2 ou 3 frases orientando como melhorar (RECOMENDAÇÃO FINAL).`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            score: { type: Type.NUMBER, description: "Nota final de 0 a 100.0" },
+            score: { type: Type.NUMBER },
             detailedScores: {
               type: Type.OBJECT,
               properties: {
-                conteudo: { type: Type.NUMBER, description: "0 a 40" },
-                estrutura: { type: Type.NUMBER, description: "0 a 20" },
-                argumentacao: { type: Type.NUMBER, description: "0 a 20" },
-                gramatica: { type: Type.NUMBER, description: "0 a 20" },
-                total: { type: Type.NUMBER, description: "Soma dos critérios" }
+                estrutura: { type: Type.NUMBER },
+                argumentacao: { type: Type.NUMBER },
+                coesao: { type: Type.NUMBER },
+                gramatica: { type: Type.NUMBER },
+                total: { type: Type.NUMBER }
               },
-              required: ["conteudo", "estrutura", "argumentacao", "gramatica", "total"]
+              required: ["estrutura", "argumentacao", "coesao", "gramatica", "total"]
             },
-            comments: { type: Type.STRING, description: "Visão geral do examinador" },
+            comments: { type: Type.STRING },
             strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
             weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
             grammarIssues: { type: Type.ARRAY, items: { type: Type.STRING } },
-            markedEssay: { type: Type.STRING, description: "Texto da redação com erros sublinhados usando <u></u>" },
+            markedEssay: { type: Type.STRING },
             improvementExamples: {
               type: Type.ARRAY,
               items: {
@@ -307,13 +313,14 @@ export const correctEssayWithAi = async (essay: string, theme: string): Promise<
                   original: { type: Type.STRING },
                   corrected: { type: Type.STRING },
                   explanation: { type: Type.STRING },
-                  paragraph: { type: Type.INTEGER, description: "Número do parágrafo onde o erro foi detectado" }
+                  paragraph: { type: Type.INTEGER }
                 },
                 required: ["original", "corrected", "explanation", "paragraph"]
               }
-            }
+            },
+            recommendation: { type: Type.STRING }
           },
-          required: ["score", "detailedScores", "comments", "strengths", "weaknesses", "grammarIssues", "markedEssay", "improvementExamples"]
+          required: ["score", "detailedScores", "comments", "strengths", "weaknesses", "grammarIssues", "markedEssay", "improvementExamples", "recommendation"]
         }
       }
     });

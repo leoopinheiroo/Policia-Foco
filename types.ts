@@ -99,9 +99,9 @@ export interface QuestionFilters {
 export interface EssayFeedback {
   score: number;
   detailedScores: {
-    conteudo: number;
     estrutura: number;
     argumentacao: number;
+    coesao: number;
     gramatica: number;
     total: number;
   };
@@ -116,4 +116,5 @@ export interface EssayFeedback {
     explanation: string;
     paragraph?: number;
   }[];
+  recommendation: string;
 }

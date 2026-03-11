@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface AuthProps {
   mode: 'LOGIN' | 'SIGNUP' | 'FORGOT_PASSWORD';
@@ -24,6 +25,7 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Carrega credenciais salvas de forma persistente ao montar o componente
   useEffect(() => {
@@ -182,17 +184,26 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
                    )}
                 </div>
                 {mode !== 'FORGOT_PASSWORD' ? (
-                  <input 
-                     id="password-field"
-                     name="password"
-                     type="password" 
-                     autoComplete={mode === 'LOGIN' ? 'current-password' : 'new-password'}
-                     required
-                     value={password}
-                     onChange={(e) => setPassword(e.target.value)}
-                     className="w-full bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition text-sm tracking-[0.3em] placeholder:text-slate-700 placeholder:tracking-normal"
-                     placeholder="Mínimo 6 caracteres"
-                  />
+                  <div className="relative">
+                    <input 
+                       id="password-field"
+                       name="password"
+                       type={showPassword ? "text" : "password"} 
+                       autoComplete={mode === 'LOGIN' ? 'current-password' : 'new-password'}
+                       required
+                       value={password}
+                       onChange={(e) => setPassword(e.target.value)}
+                       className={`w-full bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition text-sm placeholder:text-slate-700 placeholder:tracking-normal ${!showPassword ? 'tracking-[0.3em]' : 'tracking-normal'}`}
+                       placeholder="Mínimo 6 caracteres"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-yellow-500 transition-colors p-2"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 ) : (
                   <div className="text-[10px] text-slate-400 font-medium leading-relaxed px-1 italic">
                     Enviaremos um link de redefinição para o endereço acima.

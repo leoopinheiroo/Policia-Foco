@@ -153,26 +153,34 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
                 {/* Detailed Scores Breakdown */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
                     <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
-                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Conteúdo</div>
-                        <div className="text-xl font-black text-white">{feedback.detailedScores.conteudo}/40</div>
-                    </div>
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
                         <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Estrutura</div>
-                        <div className="text-xl font-black text-white">{feedback.detailedScores.estrutura}/20</div>
+                        <div className="text-xl font-black text-white">{feedback.detailedScores.estrutura}/25</div>
                     </div>
                     <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
                         <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Argumentação</div>
-                        <div className="text-xl font-black text-white">{feedback.detailedScores.argumentacao}/20</div>
+                        <div className="text-xl font-black text-white">{feedback.detailedScores.argumentacao}/25</div>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Coesão</div>
+                        <div className="text-xl font-black text-white">{feedback.detailedScores.coesao}/25</div>
                     </div>
                     <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
                         <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Gramática</div>
-                        <div className="text-xl font-black text-white">{feedback.detailedScores.gramatica}/20</div>
+                        <div className="text-xl font-black text-white">{feedback.detailedScores.gramatica}/25</div>
                     </div>
                 </div>
              </div>
 
              {/* Content */}
              <div className="p-8 -mt-6">
+                
+                {/* Recommendation Card */}
+                <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200 mb-8 relative z-20">
+                    <h3 className="text-xs font-black text-yellow-700 uppercase tracking-widest mb-2 flex items-center gap-2">
+                        <span>🚀</span> Recomendação Final
+                    </h3>
+                    <p className="text-slate-800 font-medium leading-relaxed">{feedback.recommendation}</p>
+                </div>
                 
                 {/* Marked Essay Card */}
                 <div className="bg-white p-8 rounded-xl shadow-lg border border-slate-100 mb-8 relative z-20">
