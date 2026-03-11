@@ -22,13 +22,20 @@ export type ViewState =
   | 'FLASHCARDS' 
   | 'DASHBOARD' 
   | 'GENIUS_IA'
+  | 'MENTORIA'
+  | 'MISSION_CONTROL'
+  | 'RANKING'
+  | 'DOSSIER'
   | 'VADE_MECUM';
+
+export type SubjectCategory = 'BASICAS' | 'HUMANAS' | 'JURIDICAS' | 'ESPECIFICAS';
 
 export interface Subject {
   id: string;
   name: string;
   icon: string;
   topics: string[];
+  category: SubjectCategory;
 }
 
 export type QuestionType = 'CERTO_ERRADO' | 'MULTIPLA_ESCOLHA';
@@ -82,9 +89,34 @@ export interface UserHistory {
     correct: boolean;
     answerIndex: number;
     timestamp: number;
-    responseTime: number; // em milissegundos
-    question: Question; // Store the question for later review
+    responseTime: number;
+    question: Question;
   }>;
+  savedQuestions?: string[]; // IDs of questions in the "Dossier"
+  missionProgress?: Record<string, {
+    theoryDone: boolean;
+    exercisesDone: boolean;
+    mastery: number;
+  }>;
+}
+
+export interface Mission {
+  id: string;
+  name: string;
+  description: string;
+  subjects: {
+    subjectId: string;
+    weight: number;
+    topics: string[];
+  }[];
+}
+
+export interface RankEntry {
+  name: string;
+  xp: number;
+  level: number;
+  avatar: string;
+  isCurrentUser?: boolean;
 }
 
 export interface QuestionFilters {

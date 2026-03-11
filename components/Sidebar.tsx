@@ -14,7 +14,11 @@ interface SidebarProps {
 
 const MenuItems: { id: ViewState; label: string; icon: string }[] = [
   { id: 'HOME', label: 'Início', icon: '🏠' },
+  { id: 'MISSION_CONTROL', label: 'Missões Alvo', icon: '🎯' },
+  { id: 'RANKING', label: 'Ranking Elite', icon: '🏆' },
+  { id: 'DOSSIER', label: 'Dossiê de Evidências', icon: '📂' },
   { id: 'GENIUS_IA', label: 'Genius IA', icon: '🧠' },
+  { id: 'MENTORIA', label: 'Mentoria IA', icon: '👨‍🏫' },
   { id: 'SUBJECTS', label: 'Estudar por Matéria', icon: '📚' },
   { id: 'SIMULADOS', label: 'Simulados', icon: '📝' },
   { id: 'REDACAO', label: 'Redação', icon: '✍️' },

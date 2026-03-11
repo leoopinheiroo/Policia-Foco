@@ -131,21 +131,33 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
           <h3 className="font-black text-slate-900 mb-8 uppercase text-xs tracking-[0.2em] flex items-center gap-2">
             <span className="w-2 h-2 bg-yellow-500 rounded-full"></span> 1. Disciplinas do Edital ({selectedSubjects.length} selecionadas)
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {SUBJECTS.map(sub => (
-              <button
-                key={sub.id}
-                onClick={() => toggleSubject(sub.id)}
-                className={`flex items-center gap-4 p-5 rounded-2xl border-2 text-left transition-all
-                  ${selectedSubjects.includes(sub.id) 
-                    ? 'border-yellow-500 bg-yellow-50 text-slate-900 font-bold' 
-                    : 'border-slate-100 text-slate-400 hover:border-slate-200'
-                  }
-                `}
-              >
-                <span className="text-3xl">{sub.icon}</span>
-                <span className="text-sm uppercase font-black tracking-tight">{sub.name}</span>
-              </button>
+          <div className="space-y-10">
+            {[
+              { id: 'BASICAS', label: 'Disciplinas Básicas' },
+              { id: 'HUMANAS', label: 'Humanas e Complementares' },
+              { id: 'JURIDICAS', label: 'Tronco Jurídico' },
+              { id: 'ESPECIFICAS', label: 'Específicas e Técnicas' }
+            ].map(cat => (
+              <div key={cat.id} className="space-y-4">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{cat.label}</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {SUBJECTS.filter(s => s.category === cat.id).map(sub => (
+                    <button
+                      key={sub.id}
+                      onClick={() => toggleSubject(sub.id)}
+                      className={`flex items-center gap-4 p-5 rounded-2xl border-2 text-left transition-all
+                        ${selectedSubjects.includes(sub.id) 
+                          ? 'border-yellow-500 bg-yellow-50 text-slate-900 font-bold' 
+                          : 'border-slate-100 text-slate-400 hover:border-slate-200'
+                        }
+                      `}
+                    >
+                      <span className="text-3xl">{sub.icon}</span>
+                      <span className="text-sm uppercase font-black tracking-tight">{sub.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
           <div className="mt-8 flex gap-6">

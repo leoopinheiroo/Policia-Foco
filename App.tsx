@@ -11,6 +11,11 @@ import { Simulados } from './components/Simulados';
 import { Flashcards } from './components/Flashcards';
 import { VadeMecum } from './components/VadeMecum';
 import { GeniusIA } from './components/GeniusIA';
+import { MentoriaIA } from './components/MentoriaIA';
+import { MissionControl } from './components/MissionControl';
+import { Ranking } from './components/Ranking';
+import { Dossier } from './components/Dossier';
+import { StudyTimer } from './components/StudyTimer';
 import { Auth } from './components/Auth';
 import { LandingPage } from './components/LandingPage';
 import { Checkout } from './components/Checkout';
@@ -245,7 +250,7 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {SUBJECTS.slice(0, 12).map(sub => (
+                {SUBJECTS.filter(s => s.category === 'BASICAS' || s.category === 'JURIDICAS').slice(0, 12).map(sub => (
                   <button 
                     key={sub.id}
                     onClick={() => handleSubjectClick(sub.id)}
@@ -282,9 +287,10 @@ const App: React.FC = () => {
             <QuestionFilter onFilter={handleFilterApply} />
             
             <div className="space-y-16">
-               <SubjectSection title="Básicas e Transversais" items={SUBJECTS.slice(0, 6)} onSubjectClick={handleSubjectClick} />
-               <SubjectSection title="Tronco Jurídico" items={SUBJECTS.slice(6, 16)} onSubjectClick={handleSubjectClick} />
-               <SubjectSection title="Especializadas e Operacionais" items={SUBJECTS.slice(16)} onSubjectClick={handleSubjectClick} />
+               <SubjectSection title="Disciplinas Básicas" items={SUBJECTS.filter(s => s.category === 'BASICAS')} onSubjectClick={handleSubjectClick} />
+               <SubjectSection title="Humanas e Complementares" items={SUBJECTS.filter(s => s.category === 'HUMANAS')} onSubjectClick={handleSubjectClick} />
+               <SubjectSection title="Tronco Jurídico" items={SUBJECTS.filter(s => s.category === 'JURIDICAS')} onSubjectClick={handleSubjectClick} />
+               <SubjectSection title="Especializadas e Operacionais" items={SUBJECTS.filter(s => s.category === 'ESPECIFICAS')} onSubjectClick={handleSubjectClick} />
             </div>
           </div>
         );
@@ -375,6 +381,21 @@ const App: React.FC = () => {
 
       case 'SIMULADOS': return <Simulados userEmail={userEmail} />;
       case 'REDACAO': return <EssayCorrection userEmail={userEmail} />;
+      case 'MENTORIA': return <MentoriaIA />;
+      case 'MISSION_CONTROL': return <MissionControl />;
+      case 'RANKING': return <Ranking />;
+      case 'DOSSIER':
+        return (
+          <Dossier 
+            userHistory={userHistory} 
+            onReviewQuestion={(question) => {
+              setFilteredQuestions([question]);
+              setSelectedTopic(`Revisão de Dossiê`);
+              setSelectedSubjectId(null);
+              setCurrentView('QUESTIONS');
+            }} 
+          />
+        );
       case 'DASHBOARD': return <Dashboard />;
       case 'FLASHCARDS': return <Flashcards userEmail={userEmail} />;
       case 'VADE_MECUM': return <VadeMecum />;
@@ -420,6 +441,8 @@ const App: React.FC = () => {
           <div className="flex-1 p-6 md:p-16 max-w-[1800px] mx-auto w-full">
             {renderPlatformContent()}
           </div>
+
+          <StudyTimer />
 
           {isLoading && (
             <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center text-center p-6 text-white">

@@ -103,7 +103,18 @@ export const QuestionFilter: React.FC<QuestionFilterProps> = ({ onFilter }) => {
             className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold text-slate-700 outline-none focus:border-yellow-500 transition-all"
           >
             <option value="">Todas as Disciplinas</option>
-            {SUBJECTS.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            <optgroup label="Disciplinas Básicas">
+              {SUBJECTS.filter(s => s.category === 'BASICAS').map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </optgroup>
+            <optgroup label="Humanas e Complementares">
+              {SUBJECTS.filter(s => s.category === 'HUMANAS').map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </optgroup>
+            <optgroup label="Tronco Jurídico">
+              {SUBJECTS.filter(s => s.category === 'JURIDICAS').map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </optgroup>
+            <optgroup label="Específicas e Técnicas">
+              {SUBJECTS.filter(s => s.category === 'ESPECIFICAS').map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </optgroup>
           </select>
         </div>
 

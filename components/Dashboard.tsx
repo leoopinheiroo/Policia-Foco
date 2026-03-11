@@ -68,9 +68,10 @@ export const Dashboard: React.FC = () => {
         icon: s.icon,
         acerto,
         total: stat.total,
+        category: s.category,
         status: acerto >= 80 ? 'Elite' : acerto >= 60 ? 'Combatente' : 'Recruta'
       };
-    }).filter(s => s.total > 0 || SUBJECTS.indexOf(s as any) < 8); // Mostra as que tem dados ou as 8 primeiras
+    }).filter(s => s.total > 0 || s.category === 'BASICAS');
 
     // Evolução Semanal (últimos 7 dias)
     const last7Days = [...Array(7)].map((_, i) => {

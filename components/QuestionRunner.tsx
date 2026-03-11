@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Question } from '../types';
 import { fetchSinglePoliceQuestion } from '../services/geminiService';
+import { Bookmark, BookmarkCheck, Share2 } from 'lucide-react';
 
 interface QuestionRunnerProps {
   initialQuestions: Question[];
@@ -72,6 +73,7 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
   const [questions, setQuestions] = useState<Question[]>(initialQuestions || []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(!initialQuestions || initialQuestions.length === 0);
   const [isPrefetching, setIsPrefetching] = useState(false);
   const startTimeRef = useRef<number>(Date.now());
@@ -180,7 +182,25 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
       setSelectedOption(null);
+      setIsSaved(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleSaveToDossier = async () => {
+    if (!currentQuestion) return;
+    setIsSaved(true);
+    try {
+      await fetch('/api/user/dossier/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userEmail,
+          questionId: currentQuestion.id
+        })
+      });
+    } catch (e) {
+      console.error("Erro ao salvar no dossiê:", e);
     }
   };
 
@@ -237,7 +257,18 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
             </div>
             <div className="flex flex-col items-end">
                <span className="text-[9px] font-black text-green-500 uppercase tracking-[0.2em] mb-1">Conectividade 100%</span>
-               <span className="text-[10px] font-bold text-slate-400">Geração IA Pedagógica</span>
+               <div className="flex gap-2">
+                 <button 
+                   onClick={handleSaveToDossier}
+                   className={`p-2 rounded-lg transition-all ${isSaved ? 'bg-yellow-500 text-slate-950' : 'bg-white/5 text-slate-400 hover:text-white'}`}
+                   title="Salvar no Dossiê de Evidências"
+                 >
+                   {isSaved ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
+                 </button>
+                 <button className="p-2 rounded-lg bg-white/5 text-slate-400 hover:text-white transition-all">
+                   <Share2 className="w-4 h-4" />
+                 </button>
+               </div>
             </div>
         </div>
 
