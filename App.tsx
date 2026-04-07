@@ -346,7 +346,7 @@ const App: React.FC = () => {
         if (!selectedTopic) return null;
         return (
           <QuestionRunner 
-            initialQuestions={filteredQuestions.length > 0 ? filteredQuestions : MOCK_QUESTIONS}
+            initialQuestions={filteredQuestions}
             subject={activeSubject?.name || 'Filtro'}
             topic={selectedTopic}
             userEmail={userEmail}

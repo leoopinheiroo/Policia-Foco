@@ -114,6 +114,23 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
     }
   };
 
+  // Função de validação rigorosa para garantir isolamento de matéria e assunto
+  const validateQuestion = useCallback((q: Question) => {
+    const qMateria = (q.materia || "").toLowerCase().trim();
+    const qAssunto = (q.assunto || "").toLowerCase().trim();
+    const sMateria = subject.toLowerCase().trim();
+    const sAssunto = topic.toLowerCase().trim();
+
+    const subjectMatch = qMateria === sMateria || qMateria.includes(sMateria) || sMateria.includes(qMateria);
+    const topicMatch = qAssunto === sAssunto || qAssunto.includes(sAssunto) || sAssunto.includes(qAssunto);
+    
+    if (!subjectMatch || !topicMatch) {
+      console.error(`[QuestionRunner Validation Failed] Questão [${q.materia} | ${q.assunto}] não pertence ao contexto [${subject} | ${topic}]`);
+      return false;
+    }
+    return true;
+  }, [subject, topic]);
+
   const prefetchNext = useCallback(async () => {
     if (prefetchingRef.current) return;
     prefetchingRef.current = true;
@@ -121,7 +138,7 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
     
     try {
       const newQ = await fetchSinglePoliceQuestion(subject, topic);
-      if (newQ) {
+      if (newQ && validateQuestion(newQ)) {
         setQuestions(prev => {
           if (prev.some(q => q.id === newQ.id)) return prev;
           return [...prev, newQ];
@@ -133,34 +150,38 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
       prefetchingRef.current = false;
       setIsPrefetching(false);
     }
-  }, [subject, topic]);
+  }, [subject, topic, validateQuestion]);
 
   useEffect(() => {
     const init = async () => {
-      // Se já temos questões iniciais, não precisamos carregar a primeira
+      // ISOLAMENTO OBRIGATÓRIO: Limpar contexto anterior ao mudar matéria/assunto
+      setQuestions([]);
+      setCurrentIndex(0);
+      setSelectedOption(null);
+      setIsInitialLoading(true);
+
+      // Validar questões iniciais se fornecidas
       if (initialQuestions && initialQuestions.length > 0) {
-        setQuestions(initialQuestions);
-        setIsInitialLoading(false);
-        // Opcional: prefetch mais questões se tivermos poucas
-        if (initialQuestions.length < 5) {
-          prefetchNext();
+        const validInitial = initialQuestions.filter(validateQuestion);
+        if (validInitial.length > 0) {
+          setQuestions(validInitial);
+          setIsInitialLoading(false);
+          if (validInitial.length < 5) {
+            prefetchNext();
+          }
+          return;
         }
-        return;
       }
 
-      setIsInitialLoading(true);
       try {
-        setQuestions([]);
-        setCurrentIndex(0);
-        setSelectedOption(null);
         const q1 = await fetchSinglePoliceQuestion(subject, topic);
-        if (q1) {
+        if (q1 && validateQuestion(q1)) {
           setQuestions([q1]);
           // Prefetch in background
           prefetchNext();
           prefetchNext();
         } else {
-          showToast("Não foi possível carregar a questão inicial. Tente novamente.", "error");
+          showToast("Não foi possível carregar a questão inicial válida. Tente novamente.", "error");
           onBack();
         }
       } catch (error) {
@@ -172,7 +193,7 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
       }
     };
     init();
-  }, [subject, topic, prefetchNext, initialQuestions]);
+  }, [subject, topic, prefetchNext, initialQuestions, validateQuestion, onBack, showToast]);
 
   useEffect(() => {
     if (!isInitialLoading && (questions.length - currentIndex) < 3) {

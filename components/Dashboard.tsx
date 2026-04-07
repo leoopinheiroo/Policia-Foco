@@ -47,10 +47,20 @@ export const Dashboard: React.FC = () => {
       evolution: []
     };
 
-    const questions = Object.values(history.answeredQuestions) as any[];
+    const questions = Object.values(history.answeredQuestions || {}) as any[];
     const total = questions.length;
     const correct = questions.filter(q => q.isCorrect).length;
     const accuracy = total > 0 ? (correct / total) * 100 : 0;
+
+    // Horas de Estudo
+    const studySessions = history.studySessions || [];
+    const totalStudySeconds = studySessions.reduce((acc: number, s: any) => acc + (s.duration || 0), 0);
+    // Adicionar tempo das questões (responseTime está em ms)
+    const questionsSeconds = questions.reduce((acc: number, q: any) => acc + ((q.responseTime || 0) / 1000), 0);
+    const totalHours = (totalStudySeconds + questionsSeconds) / 3600;
+
+    // Sequência Ativa
+    const streak = history.streak || 0;
 
     // Agrupar por matéria para o Mapa de Maestria
     const subjectStats: Record<string, { total: number, correct: number }> = {};
@@ -87,7 +97,7 @@ export const Dashboard: React.FC = () => {
       return { day, acerto: Math.round(Math.max(0, Math.min(100, basePerformance + variance))) };
     });
 
-    return { total, correct, accuracy, mastery, evolution };
+    return { total, correct, accuracy, mastery, evolution, totalHours, streak };
   }, [history]);
 
   const criticalSubjects = stats.mastery.filter(d => d.total > 0 && d.acerto < 60);
@@ -120,16 +130,16 @@ export const Dashboard: React.FC = () => {
         />
         <MetricCard 
           label="Horas de Estudo" 
-          value="--" 
-          trend="Em breve" 
+          value={stats.totalHours > 0 ? `${stats.totalHours.toFixed(1)}h` : "0.0h"} 
+          trend={stats.totalHours > 1 ? "Foco Total" : "Iniciando"} 
           trendPositive={true} 
           icon="⏱️"
         />
         <MetricCard 
           label="Sequência Ativa" 
-          value="--" 
-          trend="Em breve" 
-          trendPositive={true} 
+          value={`${stats.streak} dias`} 
+          trend={stats.streak > 0 ? "Fogo!" : "Comece hoje"} 
+          trendPositive={stats.streak > 0} 
           icon="🔥"
         />
       </div>

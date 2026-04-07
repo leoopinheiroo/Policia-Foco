@@ -18,13 +18,18 @@ export const fetchFilteredQuestions = async (
 
     const response = await getAi().models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: ${filterDesc}.
+      contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR.
+      MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para:
+      MATÉRIA: "${filters.materia || 'Não especificada'}"
+      ASSUNTO: "${filters.assunto || 'Não especificado'}"
       
-      RESTRIÇÃO CRÍTICA DE ISOLAMENTO: 
-      1. Você NÃO PODE incluir questões de outras matérias. 
-      2. Se a matéria solicitada for ${filters.materia}, todas as questões devem ser estritamente sobre temas de ${filters.materia}. 
-      3. É terminantemente proibido misturar conceitos. Por exemplo: se a matéria for Matemática, não inclua questões de Direito. Se for Direito Constitucional, não inclua questões de Informática.
-      4. Verifique cada questão gerada: ela pertence 100% à matéria ${filters.materia}? Se não, descarte e gere outra.
+      PROTOCOLO DE ISOLAMENTO ABSOLUTO (SEGURANÇA DE CONTEÚDO): 
+      - É TERMINANTEMENTE PROIBIDO incluir questões de outras matérias ou assuntos. 
+      - Se a matéria solicitada for "${filters.materia}", todas as questões devem ser estritamente sobre temas de "${filters.materia}". 
+      - Se o assunto for "${filters.assunto}", todas as questões devem ser estritamente sobre "${filters.assunto}".
+      - ERRO CRÍTICO A EVITAR: Não misture Direito com Matemática. Se o usuário pediu Direito Processual Penal, não gere questões de Raciocínio Lógico ou Matemática.
+      - No campo 'materia' do JSON, escreva EXATAMENTE: "${filters.materia || 'Matéria'}"
+      - No campo 'assunto' do JSON, escreva EXATAMENTE: "${filters.assunto || 'Assunto'}"
       
       Nível: Difícil (estilo carreiras policiais).
       
@@ -62,10 +67,31 @@ export const fetchFilteredQuestions = async (
     });
 
     const items = JSON.parse(cleanJson(response.text));
+    
+    // Subject and Topic Guard: Validar se a IA respeitou rigorosamente a matéria e o assunto
+    if (filters.materia || filters.assunto) {
+      const sMateria = (filters.materia || "").toLowerCase().trim();
+      const sAssunto = (filters.assunto || "").toLowerCase().trim();
+
+      const invalidItems = items.filter((q: any) => {
+        const qMateria = (q.materia || "").toLowerCase().trim();
+        const qAssunto = (q.assunto || "").toLowerCase().trim();
+
+        const subjectMatch = !filters.materia || qMateria === sMateria || qMateria.includes(sMateria) || sMateria.includes(qMateria);
+        const topicMatch = !filters.assunto || qAssunto === sAssunto || qAssunto.includes(sAssunto) || sAssunto.includes(qAssunto);
+        
+        return !subjectMatch || !topicMatch;
+      });
+
+      if (invalidItems.length > 0) {
+        console.warn(`[Subject/Topic Guard] IA gerou ${invalidItems.length} questões fora do filtro: ${filters.materia} - ${filters.assunto}. Solicitando nova geração...`);
+        throw new Error(`Subject/Topic mismatch: AI generated content for wrong subject or topic.`);
+      }
+    }
+
     return items.map((q: any) => ({
       ...q,
       id: `filt-${Date.now()}-${Math.random()}`,
-      materia: filters.materia || q.materia,
       origem: 'IA',
       isAiGenerated: true
     }));
@@ -121,7 +147,16 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 1000): Pr
   try {
     return await fn();
   } catch (error: any) {
-    if (retries > 0 && (error?.message?.includes('429') || error?.message?.includes('fetch'))) {
+    const isRetryable = 
+      error?.message?.includes('429') || 
+      error?.message?.includes('500') ||
+      error?.message?.includes('503') ||
+      error?.message?.includes('fetch') || 
+      error?.message?.includes('Subject/Topic mismatch') ||
+      error?.message?.includes('Subject mismatch');
+
+    if (retries > 0 && isRetryable) {
+      console.log(`[Retry] Falha detectada: ${error.message}. Tentando novamente (${retries} restantes)...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return withRetry(fn, retries - 1, delay * 2);
     }
@@ -140,14 +175,18 @@ export const fetchSinglePoliceQuestion = async (
     try {
       const response = await getAi().models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `PERSONA: Professor Especialista em Concursos Policiais com foco em Didática e Memorização.
-        MISSÃO: Gerar 1 questão técnica inédita EXCLUSIVAMENTE sobre ${topic} (${subject}).
+        contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR.
+        MISSÃO: Gerar 1 questão técnica inédita EXCLUSIVAMENTE para:
+        MATÉRIA: "${subject}"
+        ASSUNTO: "${topic}"
         
         REGRA DE OURO (ISOLAMENTO TOTAL): 
-        - A questão deve ser 100% focada em ${subject}. 
-        - É terminantemente proibido que a questão contenha qualquer elemento, termo ou conceito que pertença a outra disciplina. 
-        - Exemplo: Se a matéria for Matemática, a questão deve ser puramente matemática. Não pode haver menção a artigos da constituição ou leis penais.
-        - Antes de finalizar o JSON, faça uma auto-auditoria: "Esta questão poderia ser classificada em outra matéria?". Se a resposta for sim, mude a questão para que ela seja exclusiva de ${subject}.
+        - A questão deve ser 100% focada em "${subject}" e especificamente no assunto "${topic}". 
+        - É TERMINANTEMENTE PROIBIDO que a questão contenha qualquer elemento, termo ou conceito que pertença a outra disciplina ou outro assunto. 
+        - ERRO CRÍTICO A EVITAR: Não misture Direito com Matemática. Se o usuário pediu Direito Processual Penal, não gere questões de Raciocínio Lógico ou Matemática.
+        - Antes de finalizar o JSON, faça uma auto-auditoria: "Esta questão pertence EXCLUSIVAMENTE a ${subject} - ${topic}?". Se a resposta for não, descarte e gere outra.
+        - No campo 'materia' do JSON, escreva EXATAMENTE: "${subject}"
+        - No campo 'assunto' do JSON, escreva EXATAMENTE: "${topic}"
         
         REQUISITOS DO COMENTÁRIO (ESTRUTURA OBRIGATÓRIA):
         Você deve formatar o campo 'comentario' exatamente assim, usando estes títulos para eu processar visualmente:
@@ -178,6 +217,8 @@ export const fetchSinglePoliceQuestion = async (
               ano: { type: Type.INTEGER },
               orgao: { type: Type.STRING },
               cargo: { type: Type.STRING },
+              materia: { type: Type.STRING },
+              assunto: { type: Type.STRING },
               textoBase: { type: Type.STRING },
               texto: { type: Type.STRING },
               tipo: { type: Type.STRING, enum: ["CERTO_ERRADO", "MULTIPLA_ESCOLHA"] },
@@ -185,18 +226,30 @@ export const fetchSinglePoliceQuestion = async (
               correta: { type: Type.INTEGER },
               comentario: { type: Type.STRING }
             },
-            required: ["banca", "ano", "orgao", "cargo", "texto", "tipo", "alternativas", "correta", "comentario"]
+            required: ["banca", "ano", "orgao", "cargo", "materia", "assunto", "texto", "tipo", "alternativas", "correta", "comentario"]
           }
         }
       });
 
       const q = JSON.parse(cleanJson(response.text));
+
+      // Strict Subject and Topic Guard
+      const qMateria = (q.materia || "").toLowerCase().trim();
+      const qAssunto = (q.assunto || "").toLowerCase().trim();
+      const sMateria = subject.toLowerCase().trim();
+      const sAssunto = topic.toLowerCase().trim();
+
+      const subjectMatch = qMateria === sMateria || qMateria.includes(sMateria) || sMateria.includes(qMateria);
+      const topicMatch = qAssunto === sAssunto || qAssunto.includes(sAssunto) || sAssunto.includes(qAssunto);
+
+      if (!subjectMatch || !topicMatch) {
+        console.warn(`[Subject/Topic Guard] IA gerou questão de [${q.materia} | ${q.assunto}] para [${subject} | ${topic}].`);
+        throw new Error(`Subject/Topic mismatch: AI generated content for wrong subject or topic.`);
+      }
+
       return {
         ...q,
         id: `inf-${Date.now()}-${Math.random()}`,
-        materia: subject,
-        assunto: topic,
-        tema: topic,
         origem: 'IA',
         isAiGenerated: true
       };
@@ -219,13 +272,15 @@ export const generateQuestionsForSubject = async (
   return withRetry(async () => {
     const response = await getAi().models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: ${subject}.
+      contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR.
+      MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: "${subject}".
       
       PROTOCOLO DE SEGURANÇA DE MATÉRIA:
-      - Você deve gerar questões APENAS de ${subject}. 
-      - É proibido misturar temas. Se o usuário pediu ${subject}, ele quer testar conhecimentos específicos desta área.
-      - Se você gerar uma questão de Direito dentro de uma solicitação de Matemática, o sistema falhará. 
+      - Você deve gerar questões APENAS de "${subject}". 
+      - É TERMINANTEMENTE PROIBIDO misturar temas. Se o usuário pediu "${subject}", ele quer testar conhecimentos específicos desta área.
+      - ERRO CRÍTICO A EVITAR: Não misture Direito com Matemática. Se o usuário pediu Direito Processual Penal, não gere questões de Raciocínio Lógico ou Matemática.
       - Mantenha o foco 100% na disciplina solicitada.
+      - No campo 'materia' do JSON, escreva EXATAMENTE: "${subject}"
       
       Nível: Difícil (estilo CEBRASPE/FGV para carreiras policiais).
       
@@ -247,6 +302,7 @@ export const generateQuestionsForSubject = async (
               ano: { type: Type.INTEGER },
               orgao: { type: Type.STRING },
               cargo: { type: Type.STRING },
+              materia: { type: Type.STRING },
               assunto: { type: Type.STRING },
               textoBase: { type: Type.STRING },
               texto: { type: Type.STRING },
@@ -255,17 +311,28 @@ export const generateQuestionsForSubject = async (
               correta: { type: Type.INTEGER },
               comentario: { type: Type.STRING }
             },
-            required: ["banca", "ano", "orgao", "cargo", "assunto", "texto", "tipo", "alternativas", "correta", "comentario"]
+            required: ["banca", "ano", "orgao", "cargo", "materia", "assunto", "texto", "tipo", "alternativas", "correta", "comentario"]
           }
         }
       }
     });
 
     const items = JSON.parse(cleanJson(response.text));
+
+    // Strict Subject Guard
+    const sMateria = subject.toLowerCase().trim();
+    const invalidItems = items.filter((q: any) => {
+      const qMateria = (q.materia || "").toLowerCase().trim();
+      return !(qMateria === sMateria || qMateria.includes(sMateria) || sMateria.includes(qMateria));
+    });
+    if (invalidItems.length > 0) {
+      console.warn(`[Subject Guard] IA gerou ${invalidItems.length} questões fora da matéria ${subject}.`);
+      throw new Error(`Subject mismatch: AI generated content for wrong subject.`);
+    }
+
     return items.map((q: any) => ({
       ...q,
       id: `sim-${Date.now()}-${Math.random()}`,
-      materia: subject,
       origem: 'IA',
       isAiGenerated: true
     }));
@@ -278,7 +345,7 @@ export const generateQuestionsForSubject = async (
 export const correctEssayWithAi = async (essay: string, theme: string): Promise<EssayFeedback> => {
   return withRetry(async () => {
     const response = await getAi().models.generateContent({
-      model: 'gemini-1.5-pro',
+      model: 'gemini-3-flash-preview',
       contents: `Você é um avaliador sênior de redações para concursos de elite (PF, PRF, PC, Senado). 
       Sua correção deve ser rigorosa, técnica e seguir estritamente os padrões das bancas CEBRASPE e FGV.
       
@@ -293,7 +360,7 @@ export const correctEssayWithAi = async (essay: string, theme: string): Promise<
          - ARGUMENTAÇÃO: Capacidade de defender um ponto de vista com dados, fatos e lógica.
          - COESÃO E COERÊNCIA: Uso de conectivos, progressão textual e ausência de contradições.
          - GRAMÁTICA: Domínio da norma culta (ortografia, pontuação, regência, concordância).
-      3. MARCAÇÃO DE ERROS: No campo 'markedEssay', envolva os erros em tags <u></u>. Seja preciso.
+      3. MARCAÇÃO DE ERROS (CRUCIAL): No campo 'markedEssay', você DEVE transcrever a redação inteira e envolver CADA erro (gramatical, sintático ou de pontuação) em tags <u></u>. Não pule nenhum erro.
       4. EXEMPLOS DIDÁTICOS: No campo 'improvementExamples', mostre como o aluno errou e como seria a forma correta (padrão ouro).
       
       REQUISITOS DA RESPOSTA (JSON):

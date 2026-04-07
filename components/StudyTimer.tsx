@@ -9,23 +9,50 @@ export const StudyTimer: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
   const [totalStudyTime, setTotalStudyTime] = useState(0);
+  const [userEmail] = useState(() => localStorage.getItem('PF_USER_EMAIL') || '');
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedTimeRef = useRef<number>(0);
+
+  const saveStudySession = async (duration: number) => {
+    if (duration <= 0 || !userEmail) return;
+    try {
+      await fetch('/api/user/study/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userEmail,
+          duration: duration,
+          type: 'TIMER'
+        })
+      });
+      lastSavedTimeRef.current = totalStudyTime;
+    } catch (e) {
+      console.error("Erro ao salvar sessão de estudo:", e);
+    }
+  };
 
   useEffect(() => {
     if (isActive && timeLeft > 0) {
       timerRef.current = setInterval(() => {
         setTimeLeft(prev => prev - 1);
         if (mode === 'STUDY') {
-          setTotalStudyTime(prev => prev + 1);
+          setTotalStudyTime(prev => {
+            const newTotal = prev + 1;
+            // Save every 5 minutes of study
+            if (newTotal % 300 === 0) {
+              saveStudySession(newTotal - lastSavedTimeRef.current);
+            }
+            return newTotal;
+          });
         }
       }, 1000);
     } else if (timeLeft === 0) {
       setIsActive(false);
       if (timerRef.current) clearInterval(timerRef.current);
       
-      // Auto switch mode
       if (mode === 'STUDY') {
+        saveStudySession(totalStudyTime - lastSavedTimeRef.current);
         setMode('BREAK');
         setTimeLeft(5 * 60);
       } else {
@@ -33,7 +60,6 @@ export const StudyTimer: React.FC = () => {
         setTimeLeft(25 * 60);
       }
       
-      // Play notification sound if possible
       try {
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
         audio.play();
@@ -45,7 +71,12 @@ export const StudyTimer: React.FC = () => {
     };
   }, [isActive, timeLeft, mode]);
 
-  const toggleTimer = () => setIsActive(!isActive);
+  const toggleTimer = () => {
+    if (isActive && mode === 'STUDY') {
+      saveStudySession(totalStudyTime - lastSavedTimeRef.current);
+    }
+    setIsActive(!isActive);
+  };
   
   const resetTimer = () => {
     setIsActive(false);

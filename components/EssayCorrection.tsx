@@ -26,6 +26,7 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
   const [feedback, setFeedback] = useState<EssayFeedback | null>(null);
 
   const handleCorrection = async () => {
+    console.log("Iniciando correção de redação...", { theme, essayLength: essay.length });
     if (!essay.trim() || !theme.trim()) {
         alert("Por favor, selecione um tema e escreva sua redação.");
         return;
@@ -33,6 +34,7 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
     setIsCorrecting(true);
     try {
       const result = await correctEssayWithAi(essay, theme);
+      console.log("Resultado da correção recebido:", result);
       if (result) {
         setFeedback(result);
         
@@ -102,7 +104,7 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{essay.length} caracteres</span>
           <button
             onClick={handleCorrection}
-            disabled={isCorrecting || essay.length < 100}
+            disabled={isCorrecting || essay.length < 10}
             className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-8 rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 active:translate-y-0"
           >
             {isCorrecting ? 'Analisando...' : 'Corrigir Redação'}

@@ -418,12 +418,37 @@ app.use(cors());
       
       if (fetchError || !user) return res.status(404).json({ error: 'Usuário não encontrado.' });
       
-      const history = user.history || { answeredQuestions: {} };
+      const history = user.history || { answeredQuestions: {}, studySessions: [] };
+      if (!history.answeredQuestions) history.answeredQuestions = {};
+      if (!history.studySessions) history.studySessions = [];
+
+      const now = Date.now();
       history.answeredQuestions[questionId] = {
         ...result,
-        timestamp: Date.now()
+        timestamp: now
       };
       
+      // Update streak and last study date
+      const today = new Date().toISOString().split('T')[0];
+      const lastDate = history.lastStudyDate;
+      
+      if (lastDate !== today) {
+        if (lastDate) {
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayStr = yesterday.toISOString().split('T')[0];
+          
+          if (lastDate === yesterdayStr) {
+            history.streak = (history.streak || 0) + 1;
+          } else {
+            history.streak = 1;
+          }
+        } else {
+          history.streak = 1;
+        }
+        history.lastStudyDate = today;
+      }
+
       const { error: updateError } = await supabase
         .from('users')
         .update({ history })
@@ -435,6 +460,66 @@ app.use(cors());
     } catch (error) {
       console.error('Save history error:', error);
       res.status(500).json({ error: 'Erro ao salvar histórico.' });
+    }
+  });
+
+  app.post('/api/user/study/save', checkSupabase, async (req, res) => {
+    try {
+      const supabase = (req as any).supabase;
+      const { email, duration, type } = req.body;
+      if (!email || duration === undefined) return res.status(400).json({ error: 'Dados incompletos.' });
+
+      const { data: user, error: fetchError } = await supabase
+        .from('users')
+        .select('history')
+        .eq('email', email)
+        .single();
+
+      if (fetchError || !user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+
+      const history = user.history || { answeredQuestions: {}, studySessions: [] };
+      if (!history.studySessions) history.studySessions = [];
+      
+      const now = Date.now();
+      history.studySessions.push({
+        startTime: now - (duration * 1000),
+        duration,
+        type: type || 'TIMER',
+        timestamp: now
+      });
+
+      // Update streak and last study date
+      const today = new Date().toISOString().split('T')[0];
+      const lastDate = history.lastStudyDate;
+      
+      if (lastDate !== today) {
+        if (lastDate) {
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayStr = yesterday.toISOString().split('T')[0];
+          
+          if (lastDate === yesterdayStr) {
+            history.streak = (history.streak || 0) + 1;
+          } else {
+            history.streak = 1;
+          }
+        } else {
+          history.streak = 1;
+        }
+        history.lastStudyDate = today;
+      }
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ history })
+        .eq('email', email);
+
+      if (updateError) throw updateError;
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Save study session error:', error);
+      res.status(500).json({ error: 'Erro ao salvar sessão de estudo.' });
     }
   });
 
