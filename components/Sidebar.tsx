@@ -57,7 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       `}>
         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-yellow-400">GeniusAI</h1>
+            <h1 className="text-xl font-bold tracking-tight text-yellow-400">CopBrain</h1>
             <p className="text-xs text-slate-400 uppercase tracking-widest mt-1">Alta Performance</p>
           </div>
           <button onClick={() => setIsOpen(false)} className="md:hidden text-slate-400 hover:text-white">
@@ -112,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
           <p className="text-[8px] font-black text-slate-600 text-center uppercase tracking-[0.3em]">
-            Polícia Foco &bull; v2.4.0
+            CopBrain &bull; v2.4.0
           </p>
         </div>
       </div>

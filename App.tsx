@@ -444,7 +444,7 @@ const App: React.FC = () => {
              <button onClick={() => setSidebarOpen(true)} className="p-3 border border-white/10 rounded-2xl bg-white/5">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
              </button>
-             <span className="font-black text-xl text-yellow-500 tracking-tighter uppercase italic">Polícia Foco</span>
+             <span className="font-black text-xl text-yellow-500 tracking-tighter uppercase italic">CopBrain</span>
              <div className="w-10 h-10 rounded-xl bg-yellow-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-lg shadow-yellow-500/20">
                {userName.substring(0, 2).toUpperCase()}
              </div>

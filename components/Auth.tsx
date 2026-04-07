@@ -126,7 +126,7 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
           </button>
 
           <div className="text-center mb-10">
-             <h1 className="text-4xl font-black text-yellow-500 tracking-tighter italic mb-2">GENIUSAI</h1>
+             <h1 className="text-4xl font-black text-yellow-500 tracking-tighter italic mb-2">COPBRAIN</h1>
              <p className="text-slate-500 font-bold uppercase text-[9px] tracking-[0.4em]">
                 {mode === 'LOGIN' ? 'Autenticação de Operador' : mode === 'SIGNUP' ? 'Alistamento no Grupamento' : 'Recuperação de Acesso'}
              </p>

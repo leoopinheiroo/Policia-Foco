@@ -14,10 +14,10 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
         <div className="max-w-7xl mx-auto px-6 md:px-12 py-5 flex items-center justify-between">
           <div className="flex items-center gap-4 group cursor-pointer">
              <div className="w-11 h-11 bg-yellow-500 rounded-xl flex items-center justify-center shadow-[0_0_25px_rgba(234,179,8,0.2)] group-hover:scale-110 transition-transform duration-500">
-                <span className="text-slate-950 font-black text-xl tracking-tighter">PF</span>
+                <span className="text-slate-950 font-black text-xl tracking-tighter">CB</span>
              </div>
              <span className="text-2xl font-black text-white tracking-tighter italic group-hover:text-yellow-500 transition-colors duration-300 uppercase">
-               Polícia<span className="text-yellow-500 group-hover:text-white">Foco</span>
+               Cop<span className="text-yellow-500 group-hover:text-white">Brain</span>
              </span>
           </div>
           
@@ -119,7 +119,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
 
       {/* Footer */}
       <footer className="py-20 border-t border-white/5 text-center text-slate-600 text-sm">
-         <p>&copy; 2026 Polícia Foco - Treinamento de Alto Rendimento. Todos os direitos reservados.</p>
+         <p>&copy; 2026 CopBrain - Treinamento de Alto Rendimento. Todos os direitos reservados.</p>
       </footer>
     </div>
   );

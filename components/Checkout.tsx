@@ -294,7 +294,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                    onClick={(e) => {
                      if (selectedMethod === 'PIX') {
                        e.preventDefault();
-                       window.open('https://wa.me/5511939394092?text=Olá, acabei de fazer o PIX para o curso Polícia Foco!', '_blank');
+                       window.open('https://wa.me/5511939394092?text=Olá, acabei de fazer o PIX para o curso CopBrain!', '_blank');
                      }
                    }}
                    className="w-full bg-slate-900 text-white py-8 rounded-[2.5rem] font-black text-2xl hover:bg-slate-800 transition-all shadow-2xl hover:scale-[1.01] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"

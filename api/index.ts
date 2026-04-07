@@ -345,7 +345,7 @@ app.use(cors());
       const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}&email=${email}`;
       
       console.log(`[EMAIL SIMULADO] Destinatário: ${email}`);
-      console.log(`[EMAIL SIMULADO] Assunto: Recuperação de Senha - GeniusAI`);
+      console.log(`[EMAIL SIMULADO] Assunto: Recuperação de Senha - CopBrain`);
       console.log(`[EMAIL SIMULADO] Mensagem: Clique no link para redefinir sua senha: ${resetLink}`);
       
       res.json({ 
