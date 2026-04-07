@@ -19,6 +19,7 @@ import { StudyTimer } from './components/StudyTimer';
 import { Auth } from './components/Auth';
 import { LandingPage } from './components/LandingPage';
 import { Checkout } from './components/Checkout';
+import { Toast, ToastType } from './components/Toast';
 
 import { supabase } from './services/supabase';
 
@@ -30,6 +31,15 @@ const App: React.FC = () => {
   const [userName, setUserName] = useState(() => localStorage.getItem('PF_USER_NAME') || 'Operador');
   const [selectedPlan, setSelectedPlan] = useState<'MONTHLY' | 'ANNUAL'>('ANNUAL');
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+  const [toast, setToast] = useState<{ message: string; type: ToastType; isVisible: boolean }>({
+    message: '',
+    type: 'info',
+    isVisible: false
+  });
+
+  const showToast = (message: string, type: ToastType = 'info') => {
+    setToast({ message, type, isVisible: true });
+  };
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -340,6 +350,7 @@ const App: React.FC = () => {
             subject={activeSubject?.name || 'Filtro'}
             topic={selectedTopic}
             userEmail={userEmail}
+            showToast={showToast}
             onBack={() => {
               setCurrentView(activeSubject ? 'TOPICS' : 'SUBJECTS');
               setFilteredQuestions([]);
@@ -365,7 +376,7 @@ const App: React.FC = () => {
                 setCurrentView('QUESTIONS');
               } catch (error) {
                 console.error("Erro ao gerar treino intensivo:", error);
-                alert("Ocorreu um erro ao gerar as questões. Por favor, tente novamente.");
+                showToast("Ocorreu um erro ao gerar as questões. Por favor, tente novamente.", "error");
               } finally {
                 setIsLoading(false);
               }
@@ -383,7 +394,7 @@ const App: React.FC = () => {
       case 'REDACAO': return <EssayCorrection userEmail={userEmail} />;
       case 'MENTORIA': return <MentoriaIA />;
       case 'MISSION_CONTROL': return <MissionControl />;
-      case 'RANKING': return <Ranking />;
+      case 'RANKING': return <Ranking userName={userName} />;
       case 'DOSSIER':
         return (
           <Dossier 
@@ -425,7 +436,7 @@ const App: React.FC = () => {
           isOpen={sidebarOpen}
           setIsOpen={setSidebarOpen}
           onLogout={handleLogout}
-          userType={userEmail === 'leonardo.pinheiros@hotmail.com' ? 'ELITE' : 'RECRUTA'}
+          userType={userEmail === 'leonardo.pinheiros5366@gmail.com' ? 'ELITE' : 'RECRUTA'}
           userName={userName}
         />
         <main className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all">
@@ -433,9 +444,9 @@ const App: React.FC = () => {
              <button onClick={() => setSidebarOpen(true)} className="p-3 border border-white/10 rounded-2xl bg-white/5">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
              </button>
-             <span className="font-black text-xl text-yellow-500 tracking-tighter">GeniusAI</span>
-             <div className="w-10 h-10 rounded-xl bg-yellow-500 text-slate-950 flex items-center justify-center font-black text-sm">
-               LP
+             <span className="font-black text-xl text-yellow-500 tracking-tighter uppercase italic">Polícia Foco</span>
+             <div className="w-10 h-10 rounded-xl bg-yellow-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-lg shadow-yellow-500/20">
+               {userName.substring(0, 2).toUpperCase()}
              </div>
           </div>
           <div className="flex-1 p-6 md:p-16 max-w-[1800px] mx-auto w-full">
@@ -454,6 +465,13 @@ const App: React.FC = () => {
             </div>
           )}
         </main>
+
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          isVisible={toast.isVisible} 
+          onClose={() => setToast(prev => ({ ...prev, isVisible: false }))} 
+        />
       </div>
     );
   }

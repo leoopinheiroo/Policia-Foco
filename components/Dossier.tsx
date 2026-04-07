@@ -10,9 +10,10 @@ interface DossierProps {
 }
 
 export const Dossier: React.FC<DossierProps> = ({ userHistory, onReviewQuestion }) => {
+  const savedIds = userHistory?.savedQuestions || [];
   const savedQuestions = Object.values(userHistory?.answeredQuestions || {})
-    .map((record: any) => record.question)
-    .slice(0, 5); // Mocking some saved questions from history for now
+    .filter((record: any) => savedIds.includes(record.question.id))
+    .map((record: any) => record.question);
 
   return (
     <div className="max-w-6xl mx-auto space-y-12 animate-fade-in pb-20">

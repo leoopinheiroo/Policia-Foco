@@ -20,7 +20,11 @@ export const fetchFilteredQuestions = async (
       model: 'gemini-3-flash-preview',
       contents: `Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: ${filterDesc}.
       
-      RESTRIÇÃO CRÍTICA: Você NÃO PODE incluir questões de outras matérias. Se a matéria for Direito Penal, gere APENAS Direito Penal. Se for Raciocínio Lógico, gere APENAS Raciocínio Lógico. Misturar matérias é um erro grave.
+      RESTRIÇÃO CRÍTICA DE ISOLAMENTO: 
+      1. Você NÃO PODE incluir questões de outras matérias. 
+      2. Se a matéria solicitada for ${filters.materia}, todas as questões devem ser estritamente sobre temas de ${filters.materia}. 
+      3. É terminantemente proibido misturar conceitos. Por exemplo: se a matéria for Matemática, não inclua questões de Direito. Se for Direito Constitucional, não inclua questões de Informática.
+      4. Verifique cada questão gerada: ela pertence 100% à matéria ${filters.materia}? Se não, descarte e gere outra.
       
       Nível: Difícil (estilo carreiras policiais).
       
@@ -139,7 +143,11 @@ export const fetchSinglePoliceQuestion = async (
         contents: `PERSONA: Professor Especialista em Concursos Policiais com foco em Didática e Memorização.
         MISSÃO: Gerar 1 questão técnica inédita EXCLUSIVAMENTE sobre ${topic} (${subject}).
         
-        RESTRIÇÃO ABSOLUTA: A questão deve ser estritamente sobre ${subject}. É terminantemente proibido incluir conceitos de outras disciplinas (ex: não misture Direito com Raciocínio Lógico).
+        REGRA DE OURO (ISOLAMENTO TOTAL): 
+        - A questão deve ser 100% focada em ${subject}. 
+        - É terminantemente proibido que a questão contenha qualquer elemento, termo ou conceito que pertença a outra disciplina. 
+        - Exemplo: Se a matéria for Matemática, a questão deve ser puramente matemática. Não pode haver menção a artigos da constituição ou leis penais.
+        - Antes de finalizar o JSON, faça uma auto-auditoria: "Esta questão poderia ser classificada em outra matéria?". Se a resposta for sim, mude a questão para que ela seja exclusiva de ${subject}.
         
         REQUISITOS DO COMENTÁRIO (ESTRUTURA OBRIGATÓRIA):
         Você deve formatar o campo 'comentario' exatamente assim, usando estes títulos para eu processar visualmente:
@@ -213,7 +221,11 @@ export const generateQuestionsForSubject = async (
       model: 'gemini-3-flash-preview',
       contents: `Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: ${subject}.
       
-      RESTRIÇÃO CRÍTICA: Você deve gerar questões APENAS de ${subject}. Não misture com outras matérias. Se o assunto for Direito, não inclua Raciocínio Lógico ou Informática. O foco deve ser 100% na disciplina solicitada.
+      PROTOCOLO DE SEGURANÇA DE MATÉRIA:
+      - Você deve gerar questões APENAS de ${subject}. 
+      - É proibido misturar temas. Se o usuário pediu ${subject}, ele quer testar conhecimentos específicos desta área.
+      - Se você gerar uma questão de Direito dentro de uma solicitação de Matemática, o sistema falhará. 
+      - Mantenha o foco 100% na disciplina solicitada.
       
       Nível: Difícil (estilo CEBRASPE/FGV para carreiras policiais).
       
@@ -266,21 +278,23 @@ export const generateQuestionsForSubject = async (
 export const correctEssayWithAi = async (essay: string, theme: string): Promise<EssayFeedback> => {
   return withRetry(async () => {
     const response = await getAi().models.generateContent({
-      model: 'gemini-3.1-pro-preview',
-      contents: `Você é um corretor profissional especializado em redações de concursos públicos brasileiros, especialmente para carreiras policiais.
-      Sua tarefa é analisar e corrigir a redação enviada pelo usuário de forma clara, técnica e objetiva, evitando respostas excessivamente longas para manter o sistema rápido.
+      model: 'gemini-1.5-pro',
+      contents: `Você é um avaliador sênior de redações para concursos de elite (PF, PRF, PC, Senado). 
+      Sua correção deve ser rigorosa, técnica e seguir estritamente os padrões das bancas CEBRASPE e FGV.
       
-      TEMA: "${theme}"
-      REDAÇÃO DO ALUNO:
+      TEMA PROPOSTO: "${theme}"
+      REDAÇÃO PARA AVALIAÇÃO:
       ${essay}
       
-      REGRAS DA ANÁLISE:
-      - Considere redações dissertativo-argumentativas no padrão de concursos públicos.
-      - Avalie a redação em quatro critérios principais: Estrutura (0-25), Argumentação (0-25), Coesão e Coerência (0-25), Gramática (0-25).
-      - Identifique erros gramaticais, de crase, pontuação, concordância, regência e colocação pronominal.
-      - Para cada erro, forneça o trecho original, a correção sugerida e uma explicação breve.
-      - Se a redação estiver correta em determinado ponto, destaque como ponto forte.
-      - Mantenha explicações curtas para evitar lentidão.
+      DIRETRIZES DE CORREÇÃO:
+      1. RIGOR TÉCNICO: Não seja "bonzinho". Se houver erro de concordância, desconte. Se o argumento for raso, desconte.
+      2. CRITÉRIOS DE PONTUAÇÃO (0-25 cada):
+         - ESTRUTURA: Respeito à tipologia dissertativo-argumentativa, introdução, desenvolvimento e conclusão.
+         - ARGUMENTAÇÃO: Capacidade de defender um ponto de vista com dados, fatos e lógica.
+         - COESÃO E COERÊNCIA: Uso de conectivos, progressão textual e ausência de contradições.
+         - GRAMÁTICA: Domínio da norma culta (ortografia, pontuação, regência, concordância).
+      3. MARCAÇÃO DE ERROS: No campo 'markedEssay', envolva os erros em tags <u></u>. Seja preciso.
+      4. EXEMPLOS DIDÁTICOS: No campo 'improvementExamples', mostre como o aluno errou e como seria a forma correta (padrão ouro).
       
       REQUISITOS DA RESPOSTA (JSON):
       - score: Nota final de 0 a 100.
@@ -350,7 +364,10 @@ export const generateFlashcardsBatch = async (
       model: 'gemini-3-flash-preview',
       contents: `Gerar ${count} flashcards de alto rendimento EXCLUSIVAMENTE para a matéria: ${subject}.
       
-      RESTRIÇÃO CRÍTICA: Os flashcards devem tratar APENAS de ${subject}. É proibido misturar com outras disciplinas.
+      PROTOCOLO DE ISOLAMENTO:
+      - Os flashcards devem tratar APENAS de ${subject}. 
+      - É terminantemente proibido misturar com outras disciplinas. 
+      - Se a matéria for ${subject}, não inclua conceitos de Direito se for uma matéria de Exatas, ou vice-versa.
       
       Foque em conceitos-chave, prazos legais, mnemônicos e pegadinhas recorrentes em concursos policiais.`,
       config: {

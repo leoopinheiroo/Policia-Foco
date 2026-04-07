@@ -119,6 +119,8 @@ export interface RankEntry {
   isCurrentUser?: boolean;
 }
 
+export type ToastType = 'success' | 'error' | 'info';
+
 export interface QuestionFilters {
   materia?: string;
   assunto?: string;

@@ -4,18 +4,21 @@ import { motion } from 'framer-motion';
 import { Trophy, Medal, Target, Zap, TrendingUp, Users } from 'lucide-react';
 import { RankEntry } from '../types';
 
-const MOCK_RANKING: RankEntry[] = [
-  { name: 'Capitão Nascimento', xp: 15420, level: 42, avatar: '👮' },
-  { name: 'Agente Federal 07', xp: 14850, level: 40, avatar: '🕵️' },
-  { name: 'Leonardo Pinheiro', xp: 12300, level: 35, avatar: '👤', isCurrentUser: true },
-  { name: 'Delta Force', xp: 11200, level: 32, avatar: '⚡' },
-  { name: 'Sniper Elite', xp: 9800, level: 28, avatar: '🎯' },
-  { name: 'Recruta Zero', xp: 8500, level: 25, avatar: '🔰' },
-  { name: 'Operador K9', xp: 7200, level: 22, avatar: '🐕' },
-  { name: 'Patrulheiro 191', xp: 6400, level: 19, avatar: '🚔' },
-];
+interface RankingProps {
+  userName: string;
+}
 
-export const Ranking: React.FC = () => {
+export const Ranking: React.FC<RankingProps> = ({ userName }) => {
+  const MOCK_RANKING: RankEntry[] = [
+    { name: 'Capitão Nascimento', xp: 15420, level: 42, avatar: '👮' },
+    { name: 'Agente Federal 07', xp: 14850, level: 40, avatar: '🕵️' },
+    { name: userName, xp: 12300, level: 35, avatar: '👤', isCurrentUser: true },
+    { name: 'Delta Force', xp: 11200, level: 32, avatar: '⚡' },
+    { name: 'Sniper Elite', xp: 9800, level: 28, avatar: '🎯' },
+    { name: 'Recruta Zero', xp: 8500, level: 25, avatar: '🔰' },
+    { name: 'Operador K9', xp: 7200, level: 22, avatar: '🐕' },
+    { name: 'Patrulheiro 191', xp: 6400, level: 19, avatar: '🚔' },
+  ];
   return (
     <div className="max-w-5xl mx-auto space-y-12 animate-fade-in pb-20">
       {/* Ranking Header */}

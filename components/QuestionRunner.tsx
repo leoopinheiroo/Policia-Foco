@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Question } from '../types';
+import { Question, ToastType } from '../types';
 import { fetchSinglePoliceQuestion } from '../services/geminiService';
 import { Bookmark, BookmarkCheck, Share2 } from 'lucide-react';
 
@@ -10,6 +10,7 @@ interface QuestionRunnerProps {
   topic: string;
   userEmail: string;
   onBack: () => void;
+  showToast: (msg: string, type?: ToastType) => void;
 }
 
 // Componente para renderizar a explicação estruturada com estilo de "apostila de elite"
@@ -68,7 +69,8 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
   subject, 
   topic, 
   userEmail,
-  onBack 
+  onBack,
+  showToast
 }) => {
   const [questions, setQuestions] = useState<Question[]>(initialQuestions || []);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -158,12 +160,12 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
           prefetchNext();
           prefetchNext();
         } else {
-          alert("Não foi possível carregar a questão inicial. Tente novamente.");
+          showToast("Não foi possível carregar a questão inicial. Tente novamente.", "error");
           onBack();
         }
       } catch (error) {
         console.error("Erro no init:", error);
-        alert("Erro ao carregar questões.");
+        showToast("Erro ao carregar questões.", "error");
         onBack();
       } finally {
         setIsInitialLoading(false);
@@ -190,6 +192,7 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
   const handleSaveToDossier = async () => {
     if (!currentQuestion) return;
     setIsSaved(true);
+    showToast("Questão salva no seu Dossiê de Evidências.", "success");
     try {
       await fetch('/api/user/dossier/save', {
         method: 'POST',

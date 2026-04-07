@@ -10,21 +10,24 @@ const MISSIONS = [
     name: 'Operação Rodoviária (PRF)',
     description: 'Foco total no edital da Polícia Rodoviária Federal. Ênfase em Trânsito e Física.',
     icon: '🛣️',
-    difficulty: 'Hard'
+    difficulty: 'Hard',
+    briefing: 'A PRF exige um perfil versátil. O domínio da legislação de trânsito é o seu maior trunfo, mas não negligencie as exatas, que são o divisor de águas entre aprovados e excedentes.'
   },
   {
     id: 'PF_AGENTE',
     name: 'Infiltração Federal (PF)',
     description: 'Foco no cargo de Agente da Polícia Federal. Ênfase em Contabilidade e TI.',
     icon: '🕵️',
-    difficulty: 'Extreme'
+    difficulty: 'Extreme',
+    briefing: 'A Polícia Federal mudou o jogo. Contabilidade e Informática agora pesam tanto quanto o Direito. Sua missão é equilibrar o conhecimento técnico com a base jurídica sólida.'
   },
   {
     id: 'PC_SP_INVEST',
     name: 'Investigação Civil (PC-SP)',
     description: 'Foco na Polícia Civil de São Paulo. Ênfase em Criminologia e Direito.',
     icon: '🚔',
-    difficulty: 'Medium'
+    difficulty: 'Medium',
+    briefing: 'A PC-SP valoriza a tradição jurídica e a análise criminológica. Domine o Código Penal e Processual, mas dê atenção especial à Criminologia, que define o perfil do investigador paulista.'
   }
 ];
 
@@ -43,7 +46,7 @@ export const MissionControl: React.FC = () => {
   };
 
   const calculateOverallProgress = () => {
-    const totalTasks = SUBJECTS.length * 2; // theory + exercises for each subject (simplified)
+    const totalTasks = SUBJECTS.length * 2;
     const completedTasks = Object.values(progress).reduce((acc, curr) => {
       return acc + (curr.theory ? 1 : 0) + (curr.exercises ? 1 : 0);
     }, 0);
@@ -64,7 +67,7 @@ export const MissionControl: React.FC = () => {
               {activeMission.name}
             </h2>
             <p className="text-slate-400 text-lg font-medium leading-relaxed mb-8">
-              {activeMission.description}
+              {activeMission.briefing}
             </p>
             <div className="flex flex-wrap gap-4">
               <div className="bg-white/5 border border-white/10 px-6 py-3 rounded-2xl flex items-center gap-3">
@@ -140,7 +143,9 @@ export const MissionControl: React.FC = () => {
           <div className="bg-slate-900 rounded-[3rem] p-10 text-white border border-white/5 shadow-xl">
             <h3 className="text-xl font-black mb-6">Dica do Comandante</h3>
             <p className="text-slate-400 text-sm leading-relaxed italic">
-              "Para a missão {activeMission.id.includes('PRF') ? 'PRF' : 'PF'}, não adianta apenas ler a teoria. O inimigo (a banca) ataca com pegadinhas. Foque em bater 80% de acertos em cada nó do mapa antes de avançar."
+              {activeMission.id === 'PRF_2025' && '"A PRF não é apenas sobre leis, é sobre aplicação. Domine a CTB como se sua vida dependesse disso, pois na prova, ela dependerá."'}
+              {activeMission.id === 'PF_AGENTE' && '"Na PF, a Informática e a Contabilidade são as novas armas. Se você não dominar o banco de dados e as partidas dobradas, estará fora de combate."'}
+              {activeMission.id === 'PC_SP_INVEST' && '"A Polícia Civil de São Paulo exige faro jurídico. Criminologia é o diferencial. Entenda a mente do criminoso para garantir sua vaga."'}
             </p>
           </div>
         </div>

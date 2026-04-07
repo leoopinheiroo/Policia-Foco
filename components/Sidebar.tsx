@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { LogOut } from 'lucide-react';
 import { ViewState } from '../types';
 
 interface SidebarProps {
@@ -89,48 +90,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </ul>
         </nav>
 
-        <div className="p-4 border-t border-slate-800 space-y-2">
-          {/* Debug Panel for Developer */}
-          {(userName.includes('Dev') || userType === 'ELITE') && (
-            <div className="mb-4 p-3 bg-slate-950 rounded-xl border border-white/5">
-              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2">Status do Sistema</p>
-              <button 
-                onClick={async () => {
-                  try {
-                    const [healthRes, debugRes] = await Promise.all([
-                      fetch('/api/health'),
-                      fetch('/api/debug-config')
-                    ]);
-                    const health = await healthRes.json();
-                    const debug = await debugRes.json();
-                    alert(`Status: ${health.status}\nSupabase: ${health.supabase ? 'OK' : 'FALHA'}\nDB: ${health.database_connectivity}\nErro: ${health.database_error || 'Nenhum'}\n\nURL: ${debug.url_status}\nKey: ${debug.service_key_status}`);
-                  } catch (e) {
-                    alert('Erro ao conectar com a API');
-                  }
-                }}
-                className="w-full py-2 bg-white/5 hover:bg-white/10 rounded-lg text-[9px] font-black text-slate-400 transition-all"
-              >
-                DIAGNÓSTICO TÉCNICO
-              </button>
+        <div className="p-4 border-t border-slate-800 space-y-4">
+          <div className="bg-slate-800/50 rounded-2xl p-4 border border-white/5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${isGuest ? 'from-blue-400 to-indigo-500' : 'from-yellow-400 to-orange-500'} flex items-center justify-center text-slate-900 font-black text-sm shadow-lg`}>
+                {userName.substring(0, 2).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-black text-white truncate">{userName}</p>
+                <p className={`text-[9px] ${isGuest ? 'text-blue-400/70' : 'text-yellow-500/70'} font-black uppercase tracking-widest`}>
+                  {userType}
+                </p>
+              </div>
             </div>
-          )}
-          <div className="bg-slate-800 rounded-lg p-3 flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-full bg-gradient-to-tr ${isGuest ? 'from-blue-400 to-indigo-500' : 'from-yellow-400 to-orange-500'} flex items-center justify-center text-slate-900 font-bold text-xs`}>
-              {userName.substring(0, 2).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{userName}</p>
-              <p className={`text-[10px] ${isGuest ? 'text-blue-400/70' : 'text-yellow-500/70'} font-black uppercase tracking-widest`}>
-                Plano {userType}
-              </p>
-            </div>
+            <button 
+              onClick={onLogout}
+              className="w-full py-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border border-red-500/20"
+            >
+              <LogOut className="w-3 h-3" />
+              {isGuest ? 'Encerrar Demo' : 'Encerrar Sessão'}
+            </button>
           </div>
-          <button 
-            onClick={onLogout}
-            className="w-full py-3 text-[10px] font-black text-slate-500 hover:text-red-400 uppercase tracking-widest transition"
-          >
-            {isGuest ? 'Encerrar Demonstração' : 'Sair do Treinamento'}
-          </button>
+          <p className="text-[8px] font-black text-slate-600 text-center uppercase tracking-[0.3em]">
+            Polícia Foco &bull; v2.4.0
+          </p>
         </div>
       </div>
     </>
