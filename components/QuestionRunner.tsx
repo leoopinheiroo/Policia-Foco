@@ -41,13 +41,13 @@ const StructuredCommentary: React.FC<{ text: string }> = ({ text }) => {
             <span>{section.icon}</span> {section.title}
           </span>
         </div>
-        <div className="text-xl md:text-2xl leading-relaxed font-medium">
+        <div className="text-base md:text-lg leading-relaxed font-medium text-slate-700">
           {content.split('\n').map((para, i) => para.trim() && (
-            <p key={i} className="mb-4 last:mb-0">
+            <p key={i} className="mb-6 last:mb-0">
               {/* Transformar citações de leis em "Marca Texto" */}
               {para.split(/(Art\.\s\d+|Lei\snº\s\d+\.\d+)/g).map((chunk, ci) => (
                 chunk.match(/(Art\.\s\d+|Lei\snº\s\d+\.\d+)/) ? 
-                <span key={ci} className="bg-yellow-300/40 px-2 py-0.5 rounded font-black border-b-2 border-yellow-500/50">{chunk}</span> : 
+                <span key={ci} className="bg-yellow-300/40 px-2 py-0.5 rounded font-black border-b-2 border-yellow-500/50 text-slate-900">{chunk}</span> : 
                 chunk
               ))}
             </p>
@@ -296,44 +296,44 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
             </div>
         </div>
 
-        <div className="p-10 md:p-24">
+        <div className="p-10 md:p-20 max-w-4xl mx-auto">
           {currentQuestion.textoBase && (
-            <div className="mb-14 bg-slate-50 p-12 rounded-[3rem] border border-slate-200 relative group">
-               <div className="absolute top-0 left-12 -translate-y-1/2 bg-white px-8 py-2 border border-slate-200 rounded-full text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Contexto da Questão</div>
-               <p className="text-slate-700 leading-relaxed italic text-2xl whitespace-pre-wrap font-serif opacity-90">
+            <div className="mb-12 bg-slate-50 p-8 md:p-12 rounded-[2.5rem] border border-slate-200 relative group">
+               <div className="absolute top-0 left-10 -translate-y-1/2 bg-white px-6 py-1.5 border border-slate-200 rounded-full text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Contexto da Questão</div>
+               <p className="text-slate-600 leading-relaxed italic text-lg md:text-xl whitespace-pre-wrap font-serif opacity-90">
                  {currentQuestion.textoBase}
                </p>
             </div>
           )}
 
-          <h2 className="text-3xl md:text-5xl font-bold text-slate-950 leading-[1.15] mb-20 tracking-tight">
+          <h2 className="text-xl md:text-3xl font-bold text-slate-950 leading-relaxed mb-16 tracking-tight">
             {currentQuestion.texto}
           </h2>
 
-          <div className={`grid gap-6 ${isCertoErrado ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+          <div className={`grid gap-5 ${isCertoErrado ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
             {currentQuestion.alternativas.map((alt, idx) => {
               const isSelected = selectedOption === idx;
               const isCorrect = idx === currentQuestion.correta;
               const hasAnswered = selectedOption !== null;
 
-              let btnClass = "w-full text-left p-10 rounded-[2.5rem] border-2 transition-all duration-300 flex gap-8 items-start group relative ";
-              if (!hasAnswered) btnClass += "border-slate-100 hover:border-yellow-500 hover:bg-slate-50 hover:-translate-y-1 cursor-pointer";
+              let btnClass = "w-full text-left p-6 md:p-8 rounded-[2rem] border-2 transition-all duration-300 flex gap-6 items-start group relative ";
+              if (!hasAnswered) btnClass += "border-slate-100 hover:border-yellow-500 hover:bg-slate-50 hover:-translate-y-0.5 cursor-pointer";
               else {
                 if (isCorrect) btnClass += "border-green-500 bg-green-50/50";
                 else if (isSelected) btnClass += "border-red-500 bg-red-50/50";
-                else btnClass += "border-slate-50 opacity-30 scale-95";
+                else btnClass += "border-slate-50 opacity-30 scale-[0.98]";
               }
 
               return (
                 <button key={idx} onClick={() => handleAnswer(idx)} disabled={hasAnswered} className={btnClass}>
-                  <span className={`w-14 h-14 rounded-[1.2rem] flex items-center justify-center font-black shrink-0 transition-all text-2xl
+                  <span className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center font-black shrink-0 transition-all text-lg md:text-xl
                     ${hasAnswered && isCorrect ? 'bg-green-600 text-white' : 
                       hasAnswered && isSelected ? 'bg-red-600 text-white' : 
                       'bg-slate-100 text-slate-400 group-hover:bg-slate-900 group-hover:text-white'}
                   `}>
                     {isCertoErrado ? (alt.toLowerCase().includes('certo') ? 'C' : 'E') : String.fromCharCode(65 + idx)}
                   </span>
-                  <span className="text-2xl text-slate-800 pt-3 font-semibold leading-snug tracking-tight">{alt}</span>
+                  <span className="text-base md:text-lg text-slate-800 pt-2 font-semibold leading-relaxed tracking-tight">{alt}</span>
                 </button>
               );
             })}

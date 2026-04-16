@@ -253,14 +253,14 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
              <span className="font-black text-[10px] text-slate-400 uppercase tracking-[0.2em]">{q.materia} &bull; {q.assunto}</span>
              <span className="bg-white px-3 py-1 rounded-lg border border-slate-200 text-[10px] font-black text-slate-500">{q.banca} {q.ano}</span>
            </div>
-           <div className="p-12 md:p-20 flex-1">
-             <p className="text-2xl md:text-3xl text-slate-900 font-bold leading-snug mb-12 tracking-tight">{q.texto}</p>
+           <div className="p-8 md:p-16 flex-1 max-w-4xl mx-auto w-full">
+             <p className="text-xl md:text-2xl text-slate-900 font-bold leading-relaxed mb-10 tracking-tight">{q.texto}</p>
              <div className="space-y-4">
                {q.alternativas.map((alt, idx) => (
                  <button
                    key={idx}
                    onClick={() => handleAnswer(idx)}
-                   className={`w-full text-left p-6 rounded-[1.5rem] border-2 transition-all flex items-start gap-5
+                   className={`w-full text-left p-5 md:p-6 rounded-[1.5rem] border-2 transition-all flex items-start gap-5
                      ${answers[q.id] === idx 
                         ? 'border-slate-900 bg-slate-900 text-white shadow-2xl' 
                         : 'border-slate-100 hover:border-yellow-500/30 hover:bg-slate-50 text-slate-600'
@@ -270,7 +270,7 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
                    <span className={`w-10 h-10 rounded-xl flex items-center justify-center font-black shrink-0 ${answers[q.id] === idx ? 'bg-white/20' : 'bg-slate-100 text-slate-400'}`}>
                     {q.tipo === 'CERTO_ERRADO' ? (alt.toLowerCase().includes('certo') ? 'C' : 'E') : String.fromCharCode(65+idx)}
                    </span>
-                   <span className="text-lg font-medium pt-1 leading-tight">{alt}</span>
+                   <span className="text-base md:text-lg font-medium pt-1 leading-relaxed">{alt}</span>
                  </button>
                ))}
              </div>
