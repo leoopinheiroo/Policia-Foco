@@ -389,7 +389,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
       </section>
 
       {/* 7. OFERTA */}
-      <section id="pricing" className="py-32 px-6">
+      <section id="pricing" className="py-32 px-6 relative z-10">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-4xl md:text-6xl font-black mb-6">Escolha seu plano de treinamento</h2>

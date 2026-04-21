@@ -222,7 +222,11 @@ const App: React.FC = () => {
 
   const handleStart = (plan: 'MONTHLY' | 'ANNUAL') => {
     setSelectedPlan(plan);
-    setCurrentView('SIGNUP');
+    if (isLoggedIn) {
+      setCurrentView('CHECKOUT');
+    } else {
+      setCurrentView('SIGNUP');
+    }
   };
 
   const renderPlatformContent = () => {
