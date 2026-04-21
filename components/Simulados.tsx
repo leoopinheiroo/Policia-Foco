@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { StructuredCommentary } from './StructuredCommentary';
 import { Question, SimuladoResult } from '../types';
 import { SUBJECTS } from '../constants';
 import { generateQuestionsForSubject } from '../services/geminiService';
@@ -368,9 +369,9 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
                                     <span className="font-bold">{q.alternativas[q.correta]}</span>
                                 </div>
                             </div>
-                            <div className="bg-slate-900 p-8 rounded-3xl border-l-4 border-yellow-500">
-                                <h4 className="text-yellow-500 font-black text-[9px] uppercase tracking-[0.2em] mb-3">Comentário do Especialista IA:</h4>
-                                <p className="text-slate-200 text-sm leading-relaxed italic">{q.comentario}</p>
+                            <div className="bg-slate-50 p-8 rounded-3xl border border-slate-200">
+                                <h4 className="text-slate-400 font-black text-[9px] uppercase tracking-[0.2em] mb-6">Análise Técnica do Especialista IA:</h4>
+                                <StructuredCommentary text={q.comentario} />
                             </div>
                         </div>
                     </div>

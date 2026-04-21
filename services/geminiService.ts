@@ -80,6 +80,22 @@ const QUESTION_SCHEMA = {
   required: ["banca", "ano", "orgao", "cargo", "materia", "assunto", "texto", "tipo", "alternativas", "correta", "comentario"]
 };
 
+const DETAILED_COMMENTARY_INSTRUCTION = `
+PARA O CAMPO 'comentario', VOCÊ DEVE SEGUIR ESTE FORMATO OBRIGATÓRIO (USE ESTES MARCADORES EXATOS):
+
+[RESUMO DA CORRETA]
+Explicar de forma profunda e técnica por que a alternativa correta está certa. Se for Direito, cite a lei/artigo. Se for Português, explique a regra gramatical. Não economize palavras.
+
+[POR QUE AS OUTRAS ESTÃO ERRADAS?]
+Comente cada uma das alternativas incorretas, uma por uma (A, B, C, D, E conforme o caso). Deixe claro o erro de cada uma. Nunca pule alternativas.
+
+[MNEMÔNICO / DICA DE OURO]
+Forneça um macete, mnemônico ou dica prática para o aluno não esquecer esse ponto ou não cair em pegadinha similar.
+
+[RESUMO DO TEMA]
+Um parágrafo de fechamento sintetizando a teoria cobrada para fixação.
+`;
+
 /**
  * Fetches a batch of questions based on filters.
  */
@@ -98,9 +114,14 @@ export const fetchFilteredQuestions = async (
     
     const response = await getAi().models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR.
+      contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
         MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para: ${filterDesc}.
-        Nível: Difícil (estilo carreiras policiais).`,
+        Nível: Muito Difícil (Padrão Delegado/Perito/Agente Federal).
+
+        DIRETRIZES DE QUALIDADE PEDAGÓGICA:
+        1. A alternativa correta deve ser irrefutável.
+        2. As incorretas devem ser plausíveis (pegadinhas de alto nível).
+        ${DETAILED_COMMENTARY_INSTRUCTION}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -130,11 +151,16 @@ export const fetchSinglePoliceQuestion = async (
   return withRetry(async () => {
     const response = await getAi().models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR.
+      contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
         MISSÃO: Gerar 1 questão técnica inédita EXCLUSIVAMENTE para:
         MATÉRIA: "${subject}"
         ASSUNTO: "${topic}"
-        Nível: Difícil. Banca: CEBRASPE ou FGV.`,
+        Nível: Muito Difícil. Banca: CEBRASPE ou FGV.
+        
+        DIRETRIZES DE QUALIDADE PEDAGÓGICA:
+        1. Foco em jurisprudência e doutrina moderna para Direito.
+        2. Foco em normas cultas e pegadinhas de interpretação para Português.
+        ${DETAILED_COMMENTARY_INSTRUCTION}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: QUESTION_SCHEMA
@@ -161,7 +187,14 @@ export const generateQuestionsForSubject = async (
   return withRetry(async () => {
     const response = await getAi().models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: "${subject}".`,
+      contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
+        MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: "${subject}".
+        Nível: Muito Difícil (Padrão Delegado/Perito/Agente Federal).
+        
+        DIRETRIZES DE QUALIDADE PEDAGÓGICA:
+        1. Distribuição equilibrada entre os subtemas mais cobrados da matéria.
+        2. Questões que exijam raciocínio e aplicação da lei/conceito, não apenas decoreba.
+        ${DETAILED_COMMENTARY_INSTRUCTION}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {

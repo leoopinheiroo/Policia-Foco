@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { StructuredCommentary } from './StructuredCommentary';
 import { Question, ToastType } from '../types';
 import { fetchSinglePoliceQuestion } from '../services/geminiService';
 import { Bookmark, BookmarkCheck, Share2 } from 'lucide-react';
@@ -13,56 +14,6 @@ interface QuestionRunnerProps {
   showToast: (msg: string, type?: ToastType) => void;
 }
 
-// Componente para renderizar a explicação estruturada com estilo de "apostila de elite"
-const StructuredCommentary: React.FC<{ text: string }> = ({ text }) => {
-  const sections = [
-    { key: '[RESUMO DA CORRETA]', icon: '✅', title: 'Análise do Gabarito', color: 'bg-green-500/10 border-green-500/20 text-green-900', labelColor: 'bg-green-600' },
-    { key: '[POR QUE AS OUTRAS ESTÃO ERRADAS?]', icon: '✕', title: 'Análise das Incorretas', color: 'bg-red-500/5 border-red-500/10 text-slate-800', labelColor: 'bg-red-600' },
-    { key: '[MNEMÔNICO / DICA DE OURO]', icon: '💡', title: 'Dica do Operador', color: 'bg-yellow-500/10 border-yellow-500/30 text-slate-900', labelColor: 'bg-yellow-600' },
-    { key: '[CUIDADO COM A PEGADINHA!]', icon: '⚠️', title: 'Radar de Pegadinha', color: 'bg-orange-500/10 border-orange-500/30 text-orange-900', labelColor: 'bg-orange-600' }
-  ];
-
-  const renderSection = (section: typeof sections[0]) => {
-    const parts = text.split(section.key);
-    if (parts.length < 2) return null;
-    
-    // Pega o conteúdo até o próximo marcador de seção
-    let content = parts[1];
-    sections.forEach(s => {
-      if (s.key !== section.key) {
-        content = content.split(s.key)[0];
-      }
-    });
-
-    return (
-      <div key={section.key} className={`p-8 rounded-[2.5rem] border-2 mb-8 ${section.color} animate-fade-in`}>
-        <div className="flex items-center gap-3 mb-6">
-          <span className={`px-4 py-1.5 rounded-full text-white text-[10px] font-black uppercase tracking-widest ${section.labelColor} flex items-center gap-2 shadow-lg`}>
-            <span>{section.icon}</span> {section.title}
-          </span>
-        </div>
-        <div className="text-base md:text-lg leading-relaxed font-medium text-slate-700">
-          {content.split('\n').map((para, i) => para.trim() && (
-            <p key={i} className="mb-6 last:mb-0">
-              {/* Transformar citações de leis em "Marca Texto" */}
-              {para.split(/(Art\.\s\d+|Lei\snº\s\d+\.\d+)/g).map((chunk, ci) => (
-                chunk.match(/(Art\.\s\d+|Lei\snº\s\d+\.\d+)/) ? 
-                <span key={ci} className="bg-yellow-300/40 px-2 py-0.5 rounded font-black border-b-2 border-yellow-500/50 text-slate-900">{chunk}</span> : 
-                chunk
-              ))}
-            </p>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="space-y-6">
-      {sections.map(s => renderSection(s))}
-    </div>
-  );
-};
 
 export const QuestionRunner: React.FC<QuestionRunnerProps> = ({ 
   initialQuestions,
@@ -353,11 +304,18 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
                  </div>
                  <div>
                     <h3 className="text-slate-400 font-black uppercase text-[11px] tracking-[0.5em] mb-2">Resolução Comentada</h3>
-                    <p className="text-slate-950 font-black text-4xl tracking-tight">
-                      GABARITO: <span className={selectedOption === currentQuestion.correta ? 'text-green-600' : 'text-red-600'}>
-                        {isCertoErrado ? (currentQuestion.correta === 0 ? 'CERTO' : 'ERRADO') : `ALTERNATIVA ${String.fromCharCode(65 + currentQuestion.correta)}`}
-                      </span>
-                    </p>
+                    <div className="space-y-1">
+                      <p className="text-slate-950 font-black text-3xl tracking-tight">
+                        SUA RESPOSTA: <span className={selectedOption === currentQuestion.correta ? 'text-green-600' : 'text-red-600'}>
+                          {isCertoErrado ? (selectedOption === 0 ? 'CERTO' : 'ERRADO') : `ALTERNATIVA ${String.fromCharCode(65 + (selectedOption || 0))}`}
+                        </span>
+                      </p>
+                      <p className="text-slate-950 font-black text-3xl tracking-tight">
+                        GABARITO: <span className="text-green-600">
+                          {isCertoErrado ? (currentQuestion.correta === 0 ? 'CERTO' : 'ERRADO') : `ALTERNATIVA ${String.fromCharCode(65 + currentQuestion.correta)}`}
+                        </span>
+                      </p>
+                    </div>
                  </div>
               </div>
               
