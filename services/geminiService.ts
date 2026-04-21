@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 /**
  * Fetches a batch of questions based on filters.
  */
@@ -15,10 +15,34 @@ export const fetchFilteredQuestions = async (
       filters.ano ? `Ano: ${filters.ano}` : '',
       filters.tipos && filters.tipos.length > 0 ? `Estilo de Pergunta: ${filters.tipos.map(t => t === 'MULTIPLA_ESCOLHA' ? 'Múltipla Escolha (5 alternativas ABCDE)' : 'Certo/Errado').join(' e ')}` : ''
     ].filter(Boolean).join(', ');
-
-    const response = await getAi().models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR.
+    
+    const response = await getAi().getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: SchemaType.ARRAY,
+          items: {
+            type: SchemaType.OBJECT,
+            properties: {
+              banca: { type: SchemaType.STRING },
+              ano: { type: SchemaType.NUMBER },
+              orgao: { type: SchemaType.STRING },
+              cargo: { type: SchemaType.STRING },
+              materia: { type: SchemaType.STRING },
+              assunto: { type: SchemaType.STRING },
+              textoBase: { type: SchemaType.STRING },
+              texto: { type: SchemaType.STRING },
+              tipo: { type: SchemaType.STRING, enum: ["CERTO_ERRADO", "MULTIPLA_ESCOLHA"] } as any,
+              alternativas: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+              correta: { type: SchemaType.NUMBER },
+              comentario: { type: SchemaType.STRING }
+            },
+            required: ["banca", "ano", "orgao", "cargo", "materia", "assunto", "texto", "tipo", "alternativas", "correta", "comentario"]
+          }
+        }
+      }
+    }).generateContent(`VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR.
       MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para:
       MATÉRIA: "${filters.materia || 'Não especificada'}"
       ASSUNTO: "${filters.assunto || 'Não especificado'}"
@@ -39,34 +63,9 @@ export const fetchFilteredQuestions = async (
       [MNEMÔNICO / DICA DE OURO]
       [CUIDADO COM A PEGADINHA!]
       
-      IMPORTANTE: Para questões do tipo CERTO_ERRADO, as alternativas DEVEM ser ["Certo", "Errado"] nesta ordem.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              banca: { type: Type.STRING },
-              ano: { type: Type.INTEGER },
-              orgao: { type: Type.STRING },
-              cargo: { type: Type.STRING },
-              materia: { type: Type.STRING },
-              assunto: { type: Type.STRING },
-              textoBase: { type: Type.STRING },
-              texto: { type: Type.STRING },
-              tipo: { type: Type.STRING, enum: ["CERTO_ERRADO", "MULTIPLA_ESCOLHA"] },
-              alternativas: { type: Type.ARRAY, items: { type: Type.STRING } },
-              correta: { type: Type.INTEGER },
-              comentario: { type: Type.STRING }
-            },
-            required: ["banca", "ano", "orgao", "cargo", "materia", "assunto", "texto", "tipo", "alternativas", "correta", "comentario"]
-          }
-        }
-      }
-    });
+      IMPORTANTE: Para questões do tipo CERTO_ERRADO, as alternativas DEVEM ser ["Certo", "Errado"] nesta ordem.`);
 
-    const items = JSON.parse(cleanJson(response.text));
+    const items = JSON.parse(cleanJson(response.response.text()));
     
     // Subject and Topic Guard: Validar se a IA respeitou rigorosamente a matéria e o assunto
     if (filters.materia || filters.assunto) {
@@ -102,19 +101,17 @@ export const fetchFilteredQuestions = async (
 import { Question, EssayFeedback, Flashcard, UserHistory, QuestionFilters } from "../types";
 
 // Lazy initialization of the Gemini client
-let aiInstance: GoogleGenAI | null = null;
+let aiInstance: GoogleGenerativeAI | null = null;
 
 const getAi = () => {
   if (!aiInstance) {
     const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.warn("GEMINI_API_KEY não configurada. Algumas funcionalidades podem não funcionar.");
-      // Retornamos uma instância dummy ou lidamos com o erro depois
-      // Para evitar crash no carregamento do módulo, não lançamos erro aqui
-      aiInstance = new GoogleGenAI({ apiKey: "MISSING_KEY" });
-    } else {
-      aiInstance = new GoogleGenAI({ apiKey });
+    if (!apiKey || apiKey === 'MISSING_KEY') {
+      const errorMsg = "GEMINI_API_KEY não configurada. Por favor, adicione a chave no menu Settings.";
+      console.warn(errorMsg);
+      throw new Error(errorMsg);
     }
+    aiInstance = new GoogleGenerativeAI(apiKey);
   }
   return aiInstance;
 };
@@ -174,9 +171,30 @@ export const fetchSinglePoliceQuestion = async (
 ): Promise<Question | null> => {
   return withRetry(async () => {
     try {
-      const response = await getAi().models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR.
+      const response = await getAi().getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: SchemaType.OBJECT,
+            properties: {
+              banca: { type: SchemaType.STRING },
+              ano: { type: SchemaType.NUMBER },
+              orgao: { type: SchemaType.STRING },
+              cargo: { type: SchemaType.STRING },
+              materia: { type: SchemaType.STRING },
+              assunto: { type: SchemaType.STRING },
+              textoBase: { type: SchemaType.STRING },
+              texto: { type: SchemaType.STRING },
+              tipo: { type: SchemaType.STRING, enum: ["CERTO_ERRADO", "MULTIPLA_ESCOLHA"] } as any,
+              alternativas: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+              correta: { type: SchemaType.NUMBER },
+              comentario: { type: SchemaType.STRING }
+            },
+            required: ["banca", "ano", "orgao", "cargo", "materia", "assunto", "texto", "tipo", "alternativas", "correta", "comentario"]
+          }
+        }
+      }).generateContent(`VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR.
         MISSÃO: Gerar 1 questão técnica inédita EXCLUSIVAMENTE para:
         MATÉRIA: "${subject}"
         ASSUNTO: "${topic}"
@@ -208,31 +226,9 @@ export const fetchSinglePoliceQuestion = async (
         - Banca: CEBRASPE ou FGV.
         - Nível: Difícil.
         - Formato: JSON puro.
-        - Para questões CERTO_ERRADO: Alternativas devem ser obrigatoriamente ["Certo", "Errado"] nesta ordem.`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              banca: { type: Type.STRING },
-              ano: { type: Type.INTEGER },
-              orgao: { type: Type.STRING },
-              cargo: { type: Type.STRING },
-              materia: { type: Type.STRING },
-              assunto: { type: Type.STRING },
-              textoBase: { type: Type.STRING },
-              texto: { type: Type.STRING },
-              tipo: { type: Type.STRING, enum: ["CERTO_ERRADO", "MULTIPLA_ESCOLHA"] },
-              alternativas: { type: Type.ARRAY, items: { type: Type.STRING } },
-              correta: { type: Type.INTEGER },
-              comentario: { type: Type.STRING }
-            },
-            required: ["banca", "ano", "orgao", "cargo", "materia", "assunto", "texto", "tipo", "alternativas", "correta", "comentario"]
-          }
-        }
-      });
+        - Para questões CERTO_ERRADO: Alternativas devem ser obrigatoriamente ["Certo", "Errado"] nesta ordem.`);
 
-      const q = JSON.parse(cleanJson(response.text));
+      const q = JSON.parse(cleanJson(response.response.text()));
 
       // Strict Subject and Topic Guard
       const normalize = (s: string) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -271,9 +267,33 @@ export const generateQuestionsForSubject = async (
   if (count <= 0) return [];
   
   return withRetry(async () => {
-    const response = await getAi().models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR.
+    const response = await getAi().getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: SchemaType.ARRAY,
+          items: {
+            type: SchemaType.OBJECT,
+            properties: {
+              banca: { type: SchemaType.STRING },
+              ano: { type: SchemaType.NUMBER },
+              orgao: { type: SchemaType.STRING },
+              cargo: { type: SchemaType.STRING },
+              materia: { type: SchemaType.STRING },
+              assunto: { type: SchemaType.STRING },
+              textoBase: { type: SchemaType.STRING },
+              texto: { type: SchemaType.STRING },
+              tipo: { type: SchemaType.STRING, enum: ["CERTO_ERRADO", "MULTIPLA_ESCOLHA"] } as any,
+              alternativas: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+              correta: { type: SchemaType.NUMBER },
+              comentario: { type: SchemaType.STRING }
+            },
+            required: ["banca", "ano", "orgao", "cargo", "materia", "assunto", "texto", "tipo", "alternativas", "correta", "comentario"]
+          }
+        }
+      }
+    }).generateContent(`VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR.
       MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: "${subject}".
       
       PROTOCOLO DE SEGURANÇA DE MATÉRIA:
@@ -291,34 +311,9 @@ export const generateQuestionsForSubject = async (
       [MNEMÔNICO / DICA DE OURO]
       [CUIDADO COM A PEGADINHA!]
       
-      IMPORTANTE: Para questões do tipo CERTO_ERRADO, as alternativas DEVEM ser ["Certo", "Errado"] nesta ordem.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              banca: { type: Type.STRING },
-              ano: { type: Type.INTEGER },
-              orgao: { type: Type.STRING },
-              cargo: { type: Type.STRING },
-              materia: { type: Type.STRING },
-              assunto: { type: Type.STRING },
-              textoBase: { type: Type.STRING },
-              texto: { type: Type.STRING },
-              tipo: { type: Type.STRING, enum: ["CERTO_ERRADO", "MULTIPLA_ESCOLHA"] },
-              alternativas: { type: Type.ARRAY, items: { type: Type.STRING } },
-              correta: { type: Type.INTEGER },
-              comentario: { type: Type.STRING }
-            },
-            required: ["banca", "ano", "orgao", "cargo", "materia", "assunto", "texto", "tipo", "alternativas", "correta", "comentario"]
-          }
-        }
-      }
-    });
+      IMPORTANTE: Para questões do tipo CERTO_ERRADO, as alternativas DEVEM ser ["Certo", "Errado"] nesta ordem.`);
 
-    const items = JSON.parse(cleanJson(response.text));
+    const items = JSON.parse(cleanJson(response.response.text()));
 
     // Strict Subject Guard
     const normalize = (s: string) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -346,9 +341,49 @@ export const generateQuestionsForSubject = async (
  */
 export const correctEssayWithAi = async (essay: string, theme: string): Promise<EssayFeedback> => {
   return withRetry(async () => {
-    const response = await getAi().models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Você é um avaliador sênior de redações para concursos de elite (PF, PRF, PC, Senado). 
+    const response = await getAi().getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: SchemaType.OBJECT,
+          properties: {
+            score: { type: SchemaType.NUMBER },
+            detailedScores: {
+              type: SchemaType.OBJECT,
+              properties: {
+                estrutura: { type: SchemaType.NUMBER },
+                argumentacao: { type: SchemaType.NUMBER },
+                coesao: { type: SchemaType.NUMBER },
+                gramatica: { type: SchemaType.NUMBER },
+                total: { type: SchemaType.NUMBER }
+              },
+              required: ["estrutura", "argumentacao", "coesao", "gramatica", "total"]
+            },
+            comments: { type: SchemaType.STRING },
+            strengths: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+            weaknesses: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+            grammarIssues: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+            markedEssay: { type: SchemaType.STRING },
+            improvementExamples: {
+              type: SchemaType.ARRAY,
+              items: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  original: { type: SchemaType.STRING },
+                  corrected: { type: SchemaType.STRING },
+                  explanation: { type: SchemaType.STRING },
+                  paragraph: { type: SchemaType.NUMBER }
+                },
+                required: ["original", "corrected", "explanation", "paragraph"]
+              }
+            },
+            recommendation: { type: SchemaType.STRING }
+          },
+          required: ["score", "detailedScores", "comments", "strengths", "weaknesses", "grammarIssues", "markedEssay", "improvementExamples", "recommendation"]
+        }
+      }
+    }).generateContent(`Você é um avaliador sênior de redações para concursos de elite (PF, PRF, PC, Senado).
       Sua correção deve ser rigorosa, técnica e seguir estritamente os padrões das bancas CEBRASPE e FGV.
       
       TEMA PROPOSTO: "${theme}"
@@ -374,50 +409,9 @@ export const correctEssayWithAi = async (essay: string, theme: string): Promise<
       - grammarIssues: Lista de termos gramaticais identificados como problemas.
       - markedEssay: Texto completo com erros envolvidos em tags <u></u>.
       - improvementExamples: Lista de objetos com original, corrected, explanation e paragraph.
-      - recommendation: 2 ou 3 frases orientando como melhorar (RECOMENDAÇÃO FINAL).`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            score: { type: Type.NUMBER },
-            detailedScores: {
-              type: Type.OBJECT,
-              properties: {
-                estrutura: { type: Type.NUMBER },
-                argumentacao: { type: Type.NUMBER },
-                coesao: { type: Type.NUMBER },
-                gramatica: { type: Type.NUMBER },
-                total: { type: Type.NUMBER }
-              },
-              required: ["estrutura", "argumentacao", "coesao", "gramatica", "total"]
-            },
-            comments: { type: Type.STRING },
-            strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-            weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
-            grammarIssues: { type: Type.ARRAY, items: { type: Type.STRING } },
-            markedEssay: { type: Type.STRING },
-            improvementExamples: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  original: { type: Type.STRING },
-                  corrected: { type: Type.STRING },
-                  explanation: { type: Type.STRING },
-                  paragraph: { type: Type.INTEGER }
-                },
-                required: ["original", "corrected", "explanation", "paragraph"]
-              }
-            },
-            recommendation: { type: Type.STRING }
-          },
-          required: ["score", "detailedScores", "comments", "strengths", "weaknesses", "grammarIssues", "markedEssay", "improvementExamples", "recommendation"]
-        }
-      }
-    });
+      - recommendation: 2 ou 3 frases orientando como melhorar (RECOMENDAÇÃO FINAL).`);
 
-    return JSON.parse(cleanJson(response.text));
+    return JSON.parse(cleanJson(response.response.text()));
   });
 };
 
@@ -429,34 +423,33 @@ export const generateFlashcardsBatch = async (
   count: number
 ): Promise<Flashcard[]> => {
   return withRetry(async () => {
-    const response = await getAi().models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Gerar ${count} flashcards de alto rendimento EXCLUSIVAMENTE para a matéria: ${subject}.
+    const response = await getAi().getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: SchemaType.ARRAY,
+          items: {
+            type: SchemaType.OBJECT,
+            properties: {
+              front: { type: SchemaType.STRING, description: "Pergunta ou conceito" },
+              back: { type: SchemaType.STRING, description: "Resposta técnica ou explicação" },
+              assunto: { type: SchemaType.STRING }
+            },
+            required: ["front", "back", "assunto"]
+          }
+        }
+      }
+    }).generateContent(`Gerar ${count} flashcards de alto rendimento EXCLUSIVAMENTE para a matéria: ${subject}.
       
       PROTOCOLO DE ISOLAMENTO:
       - Os flashcards devem tratar APENAS de ${subject}. 
       - É terminantemente proibido misturar com outras disciplinas. 
       - Se a matéria for ${subject}, não inclua conceitos de Direito se for uma matéria de Exatas, ou vice-versa.
       
-      Foque em conceitos-chave, prazos legais, mnemônicos e pegadinhas recorrentes em concursos policiais.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              front: { type: Type.STRING, description: "Pergunta ou conceito" },
-              back: { type: Type.STRING, description: "Resposta técnica ou explicação" },
-              assunto: { type: Type.STRING }
-            },
-            required: ["front", "back", "assunto"]
-          }
-        }
-      }
-    });
+      Foque em conceitos-chave, prazos legais, mnemônicos e pegadinhas recorrentes em concursos policiais.`);
 
-    const items = JSON.parse(cleanJson(response.text));
+    const items = JSON.parse(cleanJson(response.response.text()));
     return items.map((f: any) => ({
       ...f,
       id: `fc-${Date.now()}-${Math.random()}`,

@@ -63,7 +63,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
                 e.stopPropagation();
                 onLogin();
               }}
-              className="relative z-50 px-6 py-2.5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-white transition-all shadow-xl backdrop-blur-sm cursor-pointer active:scale-95"
+              className="relative z-50 px-8 py-3 bg-orange-600 hover:bg-orange-500 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-white transition-all shadow-[0_10px_30px_-5px_rgba(234,88,12,0.4)] cursor-pointer active:scale-95"
             >
               Acessar Plataforma
             </button>
