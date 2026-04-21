@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { UserHistory, Question } from '../types';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Brain, Target, Clock, AlertCircle, Play, ChevronRight, BookOpen, TrendingDown } from 'lucide-react';
 
 interface GeniusIAProps {

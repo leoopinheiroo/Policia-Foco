@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Trophy, Medal, Target, Zap, TrendingUp, Users } from 'lucide-react';
 import { RankEntry } from '../types';
 

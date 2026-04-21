@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Target, Shield, Zap, CheckCircle2, Circle, Lock, ChevronRight, Trophy, BarChart3 } from 'lucide-react';
 import { SUBJECTS } from '../constants';
 

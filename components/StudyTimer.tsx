@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { Play, Pause, RotateCcw, X, Timer, Coffee, Brain } from 'lucide-react';
 
 export const StudyTimer: React.FC = () => {

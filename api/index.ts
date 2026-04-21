@@ -142,68 +142,9 @@ app.use(cors());
     });
   });
 
-  // Gemini Proxy Routes
-  app.post('/api/gemini/questions/filter', async (req, res) => {
-    try {
-      const { fetchFilteredQuestionsAction } = await import('./gemini');
-      const { filters, count } = req.body;
-      const questions = await fetchFilteredQuestionsAction(filters, count);
-      res.json(questions);
-    } catch (error: any) {
-      console.error('[Gemini API Error]:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
+  app.use(express.json());
 
-  app.post('/api/gemini/questions/single', async (req, res) => {
-    try {
-      const { fetchSinglePoliceQuestionAction } = await import('./gemini');
-      const { subject, topic } = req.body;
-      const question = await fetchSinglePoliceQuestionAction(subject, topic);
-      res.json(question);
-    } catch (error: any) {
-      console.error('[Gemini API Error]:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post('/api/gemini/questions/subject', async (req, res) => {
-    try {
-      const { generateQuestionsForSubjectAction } = await import('./gemini');
-      const { subject, count } = req.body;
-      const questions = await generateQuestionsForSubjectAction(subject, count);
-      res.json(questions);
-    } catch (error: any) {
-      console.error('[Gemini API Error]:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post('/api/gemini/essay/correct', async (req, res) => {
-    try {
-      const { correctEssayWithAiAction } = await import('./gemini');
-      const { essay, theme } = req.body;
-      const feedback = await correctEssayWithAiAction(essay, theme);
-      res.json(feedback);
-    } catch (error: any) {
-      console.error('[Gemini API Error]:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.post('/api/gemini/flashcards/generate', async (req, res) => {
-    try {
-      const { generateFlashcardsBatchAction } = await import('./gemini');
-      const { subject, count } = req.body;
-      const flashcards = await generateFlashcardsBatchAction(subject, count);
-      res.json(flashcards);
-    } catch (error: any) {
-      console.error('[Gemini API Error]:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Stripe Webhook (must be before express.json())
+  // Stripe Webhook (must be before other body parsers if it uses raw body, but express.raw is used specifically here)
   app.post('/api/webhook', express.raw({ type: 'application/json' }), checkSupabase, async (req, res) => {
     const sig = req.headers['stripe-signature'];
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -268,8 +209,6 @@ app.use(cors());
 
     res.json({ received: true });
   });
-
-  app.use(express.json());
 
   // Auth Routes
   app.post('/api/auth/register', checkSupabase, async (req, res) => {

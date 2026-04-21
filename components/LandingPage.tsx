@@ -57,13 +57,14 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
               Aprova<span className="text-orange-500">Elite IA</span>
             </span>
           </div>
-          <div className="flex items-center gap-4 relative z-50">
+          <div className="flex items-center gap-4 relative z-[100]">
             <button 
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 onLogin();
               }}
-              className="relative z-50 px-8 py-3 bg-orange-600 hover:bg-orange-500 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-white transition-all shadow-[0_10px_30px_-5px_rgba(234,88,12,0.4)] cursor-pointer active:scale-95"
+              className="relative z-[100] px-8 py-3 bg-orange-600 hover:bg-orange-500 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-white transition-all shadow-[0_10px_30px_-5px_rgba(234,88,12,0.4)] cursor-pointer active:scale-95 pointer-events-auto"
             >
               Acessar Plataforma
             </button>
@@ -134,10 +135,11 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
 
             <button 
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 onStart('ANNUAL');
               }}
-              className="group relative z-20 w-full max-w-md bg-green-600 hover:bg-green-500 text-white px-8 py-6 rounded-2xl font-black text-2xl shadow-[0_20px_50px_-15px_rgba(22,163,74,0.5)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-4 cursor-pointer"
+              className="group relative z-[100] w-full max-w-md bg-green-600 hover:bg-green-500 text-white px-8 py-6 rounded-2xl font-black text-2xl shadow-[0_20px_50px_-15px_rgba(22,163,74,0.5)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-4 cursor-pointer pointer-events-auto"
             >
               👉 COMEÇAR AGORA
               <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
@@ -424,10 +426,11 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
 
               <button 
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   onStart('MONTHLY');
                 }}
-                className="w-full bg-white/5 hover:bg-white/10 text-white px-8 py-6 rounded-2xl font-black text-xl border border-white/10 transition-all active:scale-95 cursor-pointer relative z-10"
+                className="w-full bg-white/5 hover:bg-white/10 text-white px-8 py-6 rounded-2xl font-black text-xl border border-white/10 transition-all active:scale-95 cursor-pointer relative z-[100] pointer-events-auto"
               >
                 COMEÇAR MENSAL
               </button>
@@ -461,10 +464,11 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
 
               <button 
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   onStart('ANNUAL');
                 }}
-                className="w-full bg-green-600 hover:bg-green-500 text-white px-8 py-7 rounded-2xl font-black text-2xl shadow-2xl transition-all active:scale-95 cursor-pointer relative z-10"
+                className="w-full bg-green-600 hover:bg-green-500 text-white px-8 py-7 rounded-2xl font-black text-2xl shadow-2xl transition-all active:scale-95 cursor-pointer relative z-[100] pointer-events-auto"
               >
                 APROVEITAR ESTA CONDIÇÃO
               </button>

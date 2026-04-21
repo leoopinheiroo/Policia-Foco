@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { motion, AnimatePresence } from 'framer-motion';
+import { GoogleGenAI } from "@google/genai";
+import { motion, AnimatePresence } from 'motion/react';
 import { Send, Bot, User, Sparkles, Brain, Target, Calendar } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -28,22 +28,24 @@ export const MentoriaIA: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const ai = new GoogleGenAI({ apiKey: (process as any).env.GEMINI_API_KEY });
       
-      const chat = model.startChat({
-        history: [
-          { role: 'user', parts: [{ text: `Você é um Mentor de Elite para concursos policiais brasileiros (PF, PRF, PC, PM). Seu objetivo é ajudar o aluno com estratégias de estudo, cronogramas, motivação e explicação de temas. Seja direto, técnico e motivador. Use termos policiais se apropriado (ex: "Operador", "QAP", "Foco na Missão").` }]},
-          ...messages.map(m => ({ role: m.role === 'model' ? 'model' : 'user', parts: [{ text: m.text }] })),
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        config: {
+          systemInstruction: "Você é um Mentor de Elite para concursos policiais brasileiros (PF, PRF, PC, PM). Seu objetivo é ajudar o aluno com estratégias de estudo, cronogramas, motivação e explicação de temas. Seja direto, técnico e motivador. Use termos policiais se apropriado (ex: \"Operador\", \"QAP\", \"Foco na Missão\")."
+        },
+        contents: [
+          ...messages.map(m => ({ role: m.role, parts: [{ text: m.text }] })),
+          { role: 'user', parts: [{ text: userMessage }] }
         ]
       });
 
-      const response = await chat.sendMessage(userMessage);
-      const text = response.response.text() || "Desculpe, tive um problema na comunicação. QAP?";
+      const text = response.text || "Desculpe, tive um problema na comunicação. QAP?";
       setMessages(prev => [...prev, { role: 'model', text }]);
     } catch (error) {
       console.error(error);
-      setMessages(prev => [...prev, { role: 'model', text: "Erro na conexão. Verifique sua rede, Operador." }]);
+      setMessages(prev => [...prev, { role: 'model', text: "Erro na conexão. Verifique se a sua Chave API está configurada no menu Settings, Operador." }]);
     } finally {
       setIsLoading(false);
     }

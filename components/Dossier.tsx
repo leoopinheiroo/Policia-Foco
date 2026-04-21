@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Folder, FileText, Search, Trash2, ExternalLink, ShieldAlert } from 'lucide-react';
 import { Question } from '../types';
 

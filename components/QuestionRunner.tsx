@@ -186,9 +186,9 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
           showToast("Não foi possível carregar a questão inicial válida. Tente novamente.", "error");
           onBack();
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Erro no init:", error);
-        showToast("Erro ao carregar questões.", "error");
+        showToast(error?.message || "Erro ao carregar questões.", "error");
         onBack();
       } finally {
         setIsInitialLoading(false);
