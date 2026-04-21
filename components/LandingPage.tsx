@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle2, XCircle, ArrowRight, Star, MessageSquare, Zap, BookOpen, BarChart3, Target, ShieldCheck, Clock, BrainCircuit, Users, Award, ChevronRight } from 'lucide-react';
+import { CheckCircle2, XCircle, ArrowRight, Star, MessageSquare, Zap, BookOpen, BarChart3, Target, ShieldCheck, Clock, BrainCircuit, Users, Award, ChevronRight, Hash, Database } from 'lucide-react';
+import { SUBJECTS } from '../constants';
 
 interface LandingProps {
   onStart: (plan: 'MONTHLY' | 'ANNUAL') => void;
@@ -307,6 +308,95 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
         </div>
       </section>
 
+      {/* 3.3 CURRICULUM SECTION */}
+      <section className="py-32 px-6 bg-slate-900/40 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-orange-600/30 to-transparent" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-orange-600/5 blur-[120px] rounded-full animate-pulse-glow -z-10" />
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-24">
+            <motion.div 
+               initial={{ opacity: 0, scale: 0.9 }}
+               whileInView={{ opacity: 1, scale: 1 }}
+               className="inline-flex items-center gap-2 bg-orange-600/10 border border-orange-600/20 px-6 py-2 rounded-full mb-8"
+            >
+               <Database className="w-4 h-4 text-orange-500" />
+               <span className="text-[10px] font-black uppercase tracking-[0.3em] text-orange-500">Base de Dados Atualizada 2026</span>
+            </motion.div>
+            <h2 className="text-4xl md:text-7xl font-black mb-8 tracking-tighter leading-tight uppercase italic">
+              Domine o Edital de <span className="text-orange-500">Ponta a Ponta</span>
+            </h2>
+            <p className="text-slate-400 text-xl max-w-3xl mx-auto font-medium italic leading-relaxed">
+              Toda a grade curricular das carreiras de elite organizada por relevância estatística. Clique no treinamento intensivo para iniciar.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-16 gap-y-24">
+             {/* CATEGORY: BÁSICAS */}
+             <div className="space-y-10 group">
+                <div className="flex items-center justify-between border-b border-white/10 pb-6">
+                   <div className="flex items-center gap-5">
+                      <div className="w-14 h-14 bg-orange-600 rounded-2xl flex items-center justify-center shadow-[0_10px_30px_-5px_rgba(234,88,12,0.5)]">
+                         <BookOpen className="w-8 h-8 text-white" />
+                      </div>
+                      <div>
+                         <h3 className="text-2xl font-black uppercase tracking-tighter italic">Tronco Comum</h3>
+                         <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest italic">Base Fundamental para Aprovação</p>
+                      </div>
+                   </div>
+                   <span className="text-[10px] font-black italic text-orange-500 bg-orange-500/5 px-3 py-1 rounded-full border border-orange-500/20">OBRIGATÓRIO</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   {SUBJECTS.filter(s => s.category === 'BASICAS').map(subject => (
+                      <LandingSubjectCard key={subject.id} subject={subject} />
+                   ))}
+                </div>
+             </div>
+
+             {/* CATEGORY: JURIDICAS */}
+             <div className="space-y-10 group">
+                <div className="flex items-center justify-between border-b border-white/10 pb-6">
+                   <div className="flex items-center gap-5">
+                      <div className="w-14 h-14 bg-orange-600 rounded-2xl flex items-center justify-center shadow-[0_10px_30px_-5px_rgba(234,88,12,0.5)]">
+                         <ShieldCheck className="w-8 h-8 text-white" />
+                      </div>
+                      <div>
+                         <h3 className="text-2xl font-black uppercase tracking-tighter italic">Doutrina Jurídica</h3>
+                         <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest italic">Direito e Legislação Aplicada</p>
+                      </div>
+                   </div>
+                   <span className="text-[10px] font-black italic text-orange-500 bg-orange-500/5 px-3 py-1 rounded-full border border-orange-500/20">ESTRATÉGICO</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   {SUBJECTS.filter(s => s.category === 'JURIDICAS').map(subject => (
+                      <LandingSubjectCard key={subject.id} subject={subject} />
+                   ))}
+                </div>
+             </div>
+
+             {/* CATEGORY: ESPECIFICAS */}
+             <div className="space-y-10 group lg:col-span-2">
+                <div className="flex items-center justify-between border-b border-white/10 pb-6">
+                   <div className="flex items-center gap-5">
+                      <div className="w-14 h-14 bg-orange-600 rounded-2xl flex items-center justify-center shadow-[0_10px_30px_-5px_rgba(234,88,12,0.5)]">
+                         <Zap className="w-8 h-8 text-white" />
+                      </div>
+                      <div>
+                         <h3 className="text-2xl font-black uppercase tracking-tighter italic">Específicas e Técnicas</h3>
+                         <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest italic">Diferencial para as Primeiras Vagas</p>
+                      </div>
+                   </div>
+                   <span className="text-[10px] font-black italic text-orange-500 bg-orange-500/5 px-3 py-1 rounded-full border border-orange-500/20">AVANÇADO</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                   {SUBJECTS.filter(s => ['ESPECIFICAS', 'HUMANAS'].includes(s.category)).map(subject => (
+                      <LandingSubjectCard key={subject.id} subject={subject} />
+                   ))}
+                </div>
+             </div>
+          </div>
+        </div>
+      </section>
+
       {/* 4. WHO IT'S FOR */}
       <section className="py-32 px-6 bg-slate-900/30">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -559,6 +649,25 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
     </div>
   );
 };
+
+const LandingSubjectCard = ({ subject }: { subject: any }) => (
+  <div className="bg-white/5 p-5 rounded-[2rem] border border-white/5 hover:border-orange-500/30 transition-all group flex items-center gap-5 hover:bg-white/[0.07] hover:scale-[1.02]">
+    <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-2xl group-hover:bg-orange-600 transition-colors animate-float">
+       {subject.icon}
+    </div>
+    <div className="flex flex-col">
+       <h4 className="text-[11px] font-black text-white uppercase tracking-tight group-hover:text-orange-500 transition-colors leading-tight mb-1">
+          {subject.name}
+       </h4>
+       <div className="flex items-center gap-2">
+          <Hash className="w-2 h-2 text-slate-500" />
+          <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest leading-none">
+             {subject.topics?.length || 10} Tópicos
+          </span>
+       </div>
+    </div>
+  </div>
+);
 
 const BulletItem = ({ text }: { text: string }) => (
   <div className="flex items-center gap-3 text-slate-300 font-bold text-sm bg-white/5 px-5 py-2.5 rounded-xl border border-white/5">
