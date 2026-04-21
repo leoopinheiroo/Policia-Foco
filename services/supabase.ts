@@ -26,16 +26,27 @@ export const getSupabase = () => {
 // Proxy para manter a compatibilidade com o código existente que importa 'supabase' diretamente
 export const supabase = new Proxy({} as any, {
   get: (target, prop) => {
-    const instance = getSupabase();
-    if (!instance) {
-      // Se estivermos na Vercel, a mensagem deve ser diferente
-      const isVercel = window.location.hostname.includes('vercel.app');
-      const message = isVercel 
-        ? 'ERRO NA VERCEL: As chaves devem começar com VITE_. Renomeie SUPABASE_URL para VITE_SUPABASE_URL e SUPABASE_ANON_KEY para VITE_SUPABASE_ANON_KEY no painel da Vercel e faça um novo Deploy.'
-        : 'Supabase não configurado. Adicione VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no menu Settings do AI Studio.';
-      
-      throw new Error(message);
+    try {
+      const instance = getSupabase();
+      if (!instance) {
+        // Mock minimalista para evitar crash em tempo de renderização
+        if (prop === 'auth') {
+          return {
+            onAuthStateChanged: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+            signInWithPassword: async () => ({ data: {}, error: new Error('Supabase não configurado') }),
+            signUp: async () => ({ data: {}, error: new Error('Supabase não configurado') }),
+            resetPasswordForEmail: async () => ({ error: new Error('Supabase não configurado') }),
+            signOut: async () => ({ error: null })
+          };
+        }
+        if (prop === 'from') return () => ({ select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }) }), order: () => ({ limit: () => ({ data: [], error: null }) }) }) });
+        
+        return null;
+      }
+      return instance[prop];
+    } catch (e) {
+      console.warn('Supabase Proxy Error:', e);
+      return null;
     }
-    return instance[prop];
   }
 });

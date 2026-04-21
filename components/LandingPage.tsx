@@ -47,7 +47,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
       </AnimatePresence>
 
       {/* 1. HERO SECTION */}
-      <nav className="fixed top-0 z-50 w-full backdrop-blur-md bg-slate-950/80 border-b border-white/5">
+      <nav className="fixed top-0 z-[70] w-full backdrop-blur-md bg-slate-950/80 border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center">
@@ -57,10 +57,13 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
               Aprova<span className="text-orange-500">Elite IA</span>
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 relative z-50">
             <button 
-              onClick={onLogin}
-              className="px-6 py-2.5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-white transition-all shadow-xl backdrop-blur-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onLogin();
+              }}
+              className="relative z-50 px-6 py-2.5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-white transition-all shadow-xl backdrop-blur-sm cursor-pointer active:scale-95"
             >
               Acessar Plataforma
             </button>
@@ -68,7 +71,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
         </div>
       </nav>
 
-      <header className="relative pt-32 pb-20 px-6 overflow-hidden">
+      <header className="relative pt-32 pb-20 px-6 overflow-hidden z-10">
         {/* Background Gradients */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full -z-10">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-600/10 blur-[120px] rounded-full"></div>
@@ -130,8 +133,11 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
             </div>
 
             <button 
-              onClick={() => onStart('ANNUAL')}
-              className="group relative w-full max-w-md bg-green-600 hover:bg-green-500 text-white px-8 py-6 rounded-2xl font-black text-2xl shadow-[0_20px_50px_-15px_rgba(22,163,74,0.5)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-4"
+              onClick={(e) => {
+                e.stopPropagation();
+                onStart('ANNUAL');
+              }}
+              className="group relative z-20 w-full max-w-md bg-green-600 hover:bg-green-500 text-white px-8 py-6 rounded-2xl font-black text-2xl shadow-[0_20px_50px_-15px_rgba(22,163,74,0.5)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-4 cursor-pointer"
             >
               👉 COMEÇAR AGORA
               <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
@@ -417,8 +423,11 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
               </div>
 
               <button 
-                onClick={() => onStart('MONTHLY')}
-                className="w-full bg-white/5 hover:bg-white/10 text-white px-8 py-6 rounded-2xl font-black text-xl border border-white/10 transition-all active:scale-95"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStart('MONTHLY');
+                }}
+                className="w-full bg-white/5 hover:bg-white/10 text-white px-8 py-6 rounded-2xl font-black text-xl border border-white/10 transition-all active:scale-95 cursor-pointer relative z-10"
               >
                 COMEÇAR MENSAL
               </button>
@@ -451,8 +460,11 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
               </div>
 
               <button 
-                onClick={() => onStart('ANNUAL')}
-                className="w-full bg-green-600 hover:bg-green-500 text-white px-8 py-7 rounded-2xl font-black text-2xl shadow-2xl transition-all active:scale-95"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStart('ANNUAL');
+                }}
+                className="w-full bg-green-600 hover:bg-green-500 text-white px-8 py-7 rounded-2xl font-black text-2xl shadow-2xl transition-all active:scale-95 cursor-pointer relative z-10"
               >
                 APROVEITAR ESTA CONDIÇÃO
               </button>

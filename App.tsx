@@ -43,17 +43,25 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Listen for auth state changes
+    // Listen for auth state changes (Hardened)
     try {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const auth = (supabase as any)?.auth;
+      if (!auth) {
+        setIsCheckingStatus(false);
+        return;
+      }
+      const { data: { subscription } } = auth.onAuthStateChange((event: any, session: any) => {
         if (session?.user) {
           setIsLoggedIn(true);
           setUserEmail(session.user.email || '');
           // Fetch profile name if available
-          supabase.from('users').select('name').eq('email', session.user.email).single()
-            .then(({ data }: any) => {
-              if (data?.name) setUserName(data.name);
-            });
+          const from = (supabase as any)?.from;
+          if (from) {
+            from('users').select('name').eq('email', session.user.email).single()
+              .then(({ data }: any) => {
+                if (data?.name) setUserName(data.name);
+              });
+          }
         } else {
           setIsLoggedIn(false);
           setUserEmail('');
@@ -61,10 +69,10 @@ const App: React.FC = () => {
         }
       });
 
-      return () => subscription.unsubscribe();
+      return () => subscription?.unsubscribe();
     } catch (e) {
       console.error('Supabase Auth Listener Error:', e);
-      // If Supabase is not configured, we just don't set up the listener
+      setIsCheckingStatus(false);
     }
   }, []);
   
