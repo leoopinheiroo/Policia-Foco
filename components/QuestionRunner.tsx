@@ -28,6 +28,7 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(!initialQuestions || initialQuestions.length === 0);
+  const [errorState, setErrorState] = useState<string | null>(null);
   const [isPrefetching, setIsPrefetching] = useState(false);
   const startTimeRef = useRef<number>(Date.now());
 
@@ -105,48 +106,45 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
     }
   }, [subject, topic, validateQuestion]);
 
-  useEffect(() => {
-    const init = async () => {
-      // ISOLAMENTO OBRIGATÓRIO: Limpar contexto anterior ao mudar matéria/assunto
-      setQuestions([]);
-      setCurrentIndex(0);
-      setSelectedOption(null);
-      setIsInitialLoading(true);
+  const init = useCallback(async () => {
+    setErrorState(null);
+    setQuestions([]);
+    setCurrentIndex(0);
+    setSelectedOption(null);
+    setIsInitialLoading(true);
 
-      // Validar questões iniciais se fornecidas
-      if (initialQuestions && initialQuestions.length > 0) {
-        const validInitial = initialQuestions.filter(validateQuestion);
-        if (validInitial.length > 0) {
-          setQuestions(validInitial);
-          setIsInitialLoading(false);
-          if (validInitial.length < 5) {
-            prefetchNext();
-          }
-          return;
-        }
-      }
-
-      try {
-        const q1 = await fetchSinglePoliceQuestion(subject, topic);
-        if (q1 && validateQuestion(q1)) {
-          setQuestions([q1]);
-          // Prefetch in background
-          prefetchNext();
-          prefetchNext();
-        } else {
-          showToast("Não foi possível carregar a questão inicial válida. Tente novamente.", "error");
-          onBack();
-        }
-      } catch (error: any) {
-        console.error("Erro no init:", error);
-        showToast(error?.message || "Erro ao carregar questões.", "error");
-        onBack();
-      } finally {
+    if (initialQuestions && initialQuestions.length > 0) {
+      const validInitial = initialQuestions.filter(validateQuestion);
+      if (validInitial.length > 0) {
+        setQuestions(validInitial);
         setIsInitialLoading(false);
+        if (validInitial.length < 5) {
+          prefetchNext();
+        }
+        return;
       }
-    };
+    }
+
+    try {
+      const q1 = await fetchSinglePoliceQuestion(subject, topic);
+      if (q1 && validateQuestion(q1)) {
+        setQuestions([q1]);
+        prefetchNext();
+        prefetchNext();
+      } else {
+        throw new Error("Não foi possível carregar a questão inicial.");
+      }
+    } catch (error: any) {
+      console.error("Erro no init:", error);
+      setErrorState(error?.message || "Erro ao carregar questões.");
+    } finally {
+      setIsInitialLoading(false);
+    }
+  }, [subject, topic, initialQuestions, validateQuestion, prefetchNext]);
+
+  useEffect(() => {
     init();
-  }, [subject, topic, prefetchNext, initialQuestions, validateQuestion, onBack, showToast]);
+  }, [subject, topic, init]);
 
   useEffect(() => {
     if (!isInitialLoading && (questions.length - currentIndex) < 3) {
@@ -185,10 +183,42 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
 
   if (isInitialLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[65vh] animate-pulse">
-        <div className="w-24 h-24 border-8 border-slate-100 border-t-yellow-500 rounded-full animate-spin mb-10 shadow-2xl shadow-yellow-500/10"></div>
-        <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase mb-2">Mobilizando IA</h3>
+      <div className="flex flex-col items-center justify-center min-h-[65vh]">
+        <div className="relative mb-12">
+           <div className="w-24 h-24 border-8 border-slate-100 border-t-yellow-500 rounded-full animate-spin shadow-2xl shadow-yellow-500/10"></div>
+           <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-2xl animate-pulse">⚡</span>
+           </div>
+        </div>
+        <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase mb-2 animate-pulse">Mobilizando IA</h3>
         <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.5em] animate-bounce">Sincronizando Edital: {topic}</p>
+        <p className="text-slate-300 text-[8px] font-black uppercase tracking-widest mt-8 italic">Obrigado pela paciência, estamos processando conteúdo inédito...</p>
+      </div>
+    );
+  }
+
+  if (errorState) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[65vh] text-center p-8 bg-white rounded-[4rem] border-2 border-slate-100 shadow-2xl animate-fade-in max-w-2xl mx-auto">
+        <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-10 text-4xl">⚠️</div>
+        <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase mb-6">Módulo Temporariamente Ocupado</h3>
+        <p className="text-slate-600 font-medium mb-10 leading-relaxed">
+          {errorState}
+        </p>
+        <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
+          <button 
+            onClick={() => init()}
+            className="bg-yellow-500 text-slate-950 px-10 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-yellow-400 transition-all shadow-xl"
+          >
+            Tentar Novamente Agora
+          </button>
+          <button 
+            onClick={onBack}
+            className="bg-slate-100 text-slate-600 px-10 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
+          >
+            Voltar ao Catálogo
+          </button>
+        </div>
       </div>
     );
   }

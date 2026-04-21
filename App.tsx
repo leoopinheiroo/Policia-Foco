@@ -171,6 +171,7 @@ const App: React.FC = () => {
   };
 
   const handleTopicClick = (topic: string) => {
+    if (currentView === 'QUESTIONS' && selectedTopic === topic) return;
     setSelectedTopic(topic);
     setFilteredQuestions([]); // Clear filtered questions when going to a specific topic
     setCurrentView('QUESTIONS');
@@ -178,6 +179,7 @@ const App: React.FC = () => {
   };
 
   const handleFilterApply = async (filters: any) => {
+    if (isLoading) return;
     setIsLoading(true);
     try {
       setCurrentView('QUESTIONS');
@@ -187,9 +189,9 @@ const App: React.FC = () => {
       const { fetchFilteredQuestions } = await import('./services/geminiService');
       const questions = await fetchFilteredQuestions(filters);
       setFilteredQuestions(questions);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao aplicar filtro:", error);
-      alert("Ocorreu um erro ao buscar as questões. Por favor, tente novamente.");
+      showToast(error?.message || "Ocorreu um erro ao buscar as questões. Tente novamente.", "error");
       setCurrentView('SUBJECTS');
     } finally {
       setIsLoading(false);
@@ -375,6 +377,7 @@ const App: React.FC = () => {
           <GeniusIA 
             userHistory={userHistory} 
             onStartIntensive={async (subject, topic) => {
+              if (isLoading) return;
               setIsLoading(true);
               try {
                 const { fetchFilteredQuestions } = await import('./services/geminiService');
@@ -386,9 +389,9 @@ const App: React.FC = () => {
                 setSelectedTopic(topic ? `Intensivo: ${topic}` : `Intensivo: ${subject}`);
                 setSelectedSubjectId(null);
                 setCurrentView('QUESTIONS');
-              } catch (error) {
+              } catch (error: any) {
                 console.error("Erro ao gerar treino intensivo:", error);
-                showToast("Ocorreu um erro ao gerar as questões. Por favor, tente novamente.", "error");
+                showToast(error?.message || "Ocorreu um erro ao gerar as questões. Tente novamente.", "error");
               } finally {
                 setIsLoading(false);
               }

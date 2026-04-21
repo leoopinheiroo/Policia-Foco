@@ -40,24 +40,62 @@ const cleanJson = (text: string): string => {
   return text.replace(/```json/g, '').replace(/```/g, '').trim();
 };
 
-async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
+// Cache em memória para evitar requisições duplicadas simultâneas
+const pendingRequests = new Map<string, Promise<any>>();
+
+// Cache em sessionStorage para persistência durante a sessão
+const getCachedData = (key: string) => {
+  try {
+    const cached = sessionStorage.getItem(`GEMINI_CACHE_${key}`);
+    return cached ? JSON.parse(cached) : null;
+  } catch (e) {
+    return null;
+  }
+};
+
+const setCachedData = (key: string, data: any) => {
+  try {
+    sessionStorage.setItem(`GEMINI_CACHE_${key}`, JSON.stringify(data));
+  } catch (e) {}
+};
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 4, delay = 2000): Promise<T> {
   try {
     return await fn();
   } catch (error: any) {
+    const errorMessage = error?.message?.toLowerCase() || '';
+    const isQuotaError = 
+      errorMessage.includes('429') || 
+      errorMessage.includes('resource_exhausted') || 
+      errorMessage.includes('quota') ||
+      errorMessage.includes('limit');
+
     const isRetryable = 
-      error?.message?.includes('429') || 
-      error?.message?.includes('500') ||
-      error?.message?.includes('503') ||
-      error?.message?.includes('fetch') || 
-      error?.message?.includes('Subject/Topic mismatch') ||
-      error?.message?.includes('Subject mismatch');
+      isQuotaError ||
+      errorMessage.includes('500') ||
+      errorMessage.includes('503') ||
+      errorMessage.includes('fetch') || 
+      errorMessage.includes('mismatch') ||
+      errorMessage.includes('content') ||
+      errorMessage.includes('server');
 
     if (retries > 0 && isRetryable) {
-      console.log(`[Retry] Falha detectada: ${error.message}. Tentando novamente (${retries} restantes)...`);
+      console.warn(`[Gemini Service] Tensão na API detectada. Retentando em ${delay}ms... (${retries} tentativas restantes)`);
       await new Promise(resolve => setTimeout(resolve, delay));
+      // Backoff exponencial: dobra o tempo de espera a cada falha
       return withRetry(fn, retries - 1, delay * 2);
     }
-    throw error;
+
+    // Tradução de erros técnicos para mensagens amigáveis
+    if (isQuotaError) {
+      throw new Error("Muitas solicitações ao mesmo tempo. Estamos preparando sua questão, aguarde alguns segundos e tente novamente.");
+    }
+    
+    if (errorMessage.includes('fetch') || errorMessage.includes('connection')) {
+      throw new Error("Conexão instável com a IA. Verifique sua internet ou tente novamente em instantes.");
+    }
+
+    throw new Error("Ocorreu uma instabilidade momentânea no servidor de IA. Por favor, tente novamente em alguns segundos.");
   }
 }
 
@@ -103,7 +141,16 @@ export const fetchFilteredQuestions = async (
   filters: QuestionFilters,
   count: number = 10
 ): Promise<Question[]> => {
-  return withRetry(async () => {
+  const cacheKey = `FQ:${JSON.stringify(filters)}:${count}`;
+  
+  // 1. Verificar Cache
+  const cached = getCachedData(cacheKey);
+  if (cached) return cached;
+
+  // 2. Verificar Requisição Pendente
+  if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey);
+
+  const request = withRetry(async () => {
     const filterDesc = [
       filters.materia ? `Matéria: ${filters.materia}` : '',
       filters.assunto ? `Assunto: ${filters.assunto}` : '',
@@ -132,23 +179,37 @@ export const fetchFilteredQuestions = async (
     });
 
     const items = JSON.parse(cleanJson(response.text || '[]'));
-    return items.map((q: any) => ({
+    const results = items.map((q: any) => ({
       ...q,
       id: `filt-${Date.now()}-${Math.random()}`,
       origem: 'IA',
       isAiGenerated: true
     }));
+
+    setCachedData(cacheKey, results);
+    return results;
   });
+
+  pendingRequests.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    pendingRequests.delete(cacheKey);
+  }
 };
 
-/**
- * Generates a single high-quality question for a specific subject and topic.
- */
 export const fetchSinglePoliceQuestion = async (
   subject: string, 
   topic: string
 ): Promise<Question | null> => {
-  return withRetry(async () => {
+  const cacheKey = `SQ:${subject}:${topic}`;
+  
+  const cached = getCachedData(cacheKey);
+  if (cached) return cached;
+
+  if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey);
+
+  const request = withRetry(async () => {
     const response = await getAi().models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
@@ -168,23 +229,37 @@ export const fetchSinglePoliceQuestion = async (
     });
 
     const q = JSON.parse(cleanJson(response.text || '{}'));
-    return {
+    const result = {
       ...q,
       id: `inf-${Date.now()}-${Math.random()}`,
       origem: 'IA',
       isAiGenerated: true
     };
+    
+    setCachedData(cacheKey, result);
+    return result;
   });
+
+  pendingRequests.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    pendingRequests.delete(cacheKey);
+  }
 };
 
-/**
- * Gera um lote de questões para uma matéria específica.
- */
 export const generateQuestionsForSubject = async (
   subject: string,
   count: number
 ): Promise<Question[]> => {
-  return withRetry(async () => {
+  const cacheKey = `GS:${subject}:${count}`;
+  
+  const cached = getCachedData(cacheKey);
+  if (cached) return cached;
+
+  if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey);
+
+  const request = withRetry(async () => {
     const response = await getAi().models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
@@ -205,13 +280,23 @@ export const generateQuestionsForSubject = async (
     });
 
     const items = JSON.parse(cleanJson(response.text || '[]'));
-    return items.map((q: any) => ({
+    const results = items.map((q: any) => ({
       ...q,
       id: `sim-${Date.now()}-${Math.random()}`,
       origem: 'IA',
       isAiGenerated: true
     }));
+
+    setCachedData(cacheKey, results);
+    return results;
   });
+
+  pendingRequests.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    pendingRequests.delete(cacheKey);
+  }
 };
 
 /**
@@ -278,10 +363,23 @@ export const generateFlashcardsBatch = async (
   subject: string, 
   count: number
 ): Promise<Flashcard[]> => {
-  return withRetry(async () => {
+  const cacheKey = `FC:${subject}:${count}`;
+  
+  const cached = getCachedData(cacheKey);
+  if (cached) return cached;
+
+  if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey);
+
+  const request = withRetry(async () => {
     const response = await getAi().models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Gerar ${count} flashcards de alto rendimento para: ${subject}.`,
+      contents: `VOCÊ É UM ESPECIALISTA EM MEMORIZAÇÃO E ACTIVE RECALL.
+        MISSÃO: Gerar ${count} flashcards de alto rendimento para a matéria: ${subject}.
+        
+        REGRAS DO CONTEÚDO:
+        1. O 'front' deve ser uma pergunta ou conceito gatilho.
+        2. O 'back' deve ser uma explicação rica, direta e incluir bases legais ou mnemônicos quando aplicável.
+        ${DETAILED_COMMENTARY_INSTRUCTION}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -300,12 +398,22 @@ export const generateFlashcardsBatch = async (
     });
 
     const items = JSON.parse(cleanJson(response.text || '[]'));
-    return items.map((f: any) => ({
+    const results = items.map((f: any) => ({
       ...f,
       id: `fc-${Date.now()}-${Math.random()}`,
       materia: subject,
       nextReview: Date.now(),
       difficultyFactor: 2.5
     }));
+
+    setCachedData(cacheKey, results);
+    return results;
   });
+
+  pendingRequests.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    pendingRequests.delete(cacheKey);
+  }
 };
