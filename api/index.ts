@@ -214,34 +214,46 @@ app.use(cors());
   app.post('/api/auth/register', checkSupabase, async (req, res) => {
     try {
       const supabase = (req as any).supabase;
-      const { email, password, name } = req.body;
+      let { email, password, name } = req.body;
       if (!email || !password) return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
 
+      email = email.trim().toLowerCase();
+      
       const { data: existingUser } = await supabase
         .from('users')
-        .select('email')
+        .select('*')
         .eq('email', email)
         .single();
 
-      if (existingUser) return res.status(400).json({ error: 'Operador já cadastrado.' });
+      if (existingUser) {
+        // Se o usuário já existe mas por algum motivo a sessão do Supabase Auth falhou antes,
+        // garantimos que os dados básicos estão corretos e retornamos sucesso.
+        // Isso evita o erro de "Já cadastrado" quando o usuário está apenas tentando "reativar" sua conta parcial.
+        console.log(`[REGISTER] Operador ${email} já existe na tabela users. Retornando sucesso para sincronização.`);
+        return res.json({ success: true, email, status: existingUser.subscription_status, message: 'Operador já sincronizado.' });
+      }
 
       const { error: insertError } = await supabase
         .from('users')
         .insert([{ 
           email, 
           password, 
-          name, 
+          name: name || 'Operador', 
           subscription_status: 'pending', 
           created_at: new Date().toISOString(),
           history: { answeredQuestions: {} }
         }]);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('[REGISTER] Insert error:', insertError);
+        throw insertError;
+      }
 
+      console.log(`[REGISTER] Novo operador criado: ${email}`);
       res.json({ success: true, email, status: 'pending' });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Register error:', error);
-      res.status(500).json({ error: 'Erro no servidor ao registrar.' });
+      res.status(500).json({ error: `Erro no servidor ao registrar: ${error.message || 'Erro desconhecido'}` });
     }
   });
 

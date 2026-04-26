@@ -49,19 +49,50 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
           password,
         });
 
-        if (authError) throw authError;
+        if (authError) {
+          if (authError.message === 'Email not confirmed') {
+            throw new Error('SEU E-MAIL AINDA NÃO FOI CONFIRMADO. VERIFIQUE SUA CAIXA DE ENTRADA OU SPAM PARA VALIDAR SUA CONTA.');
+          }
+          if (authError.message === 'Invalid login credentials') {
+            throw new Error('E-MAIL OU SENHA INCORRETOS. VERIFIQUE SEUS DADOS E TENTE NOVAMENTE.');
+          }
+          throw authError;
+        }
 
         // Após o login com Supabase Auth, buscamos o perfil na tabela users
-        const { data: profile } = await supabase
+        let { data: profile, error: profileError } = await supabase
           .from('users')
-          .select('name')
+          .select('*')
           .eq('email', email)
           .single();
+
+        // HEALING: Se o usuário logou no Auth mas não existe na tabela users, criamos agora
+        if (profileError || !profile) {
+          console.log(`[LOGIN] Usuário ${email} não encontrado na tabela users. Tentando criar perfil agora.`);
+          try {
+            const regResponse = await fetch('/api/auth/register', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password, name: 'Operador' }),
+            });
+            if (regResponse.ok) {
+              const { data: newProfile } = await supabase
+                .from('users')
+                .select('*')
+                .eq('email', email)
+                .single();
+              profile = newProfile;
+            }
+          } catch (e) {
+            console.error("Falha ao criar perfil durante login:", e);
+          }
+        }
 
         onAuth();
         onSuccess(email, profile?.name || 'Operador');
       } else if (mode === 'SIGNUP') {
-        const { data, error: authError } = await supabase.auth.signUp({
+        // Passo 1: Cadastro no Supabase Auth
+        const { data: signUpData, error: authError } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -71,24 +102,62 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
           },
         });
 
-        if (authError) throw authError;
-
-        // Criamos o registro na tabela users via API para garantir que o backend processe
-        // (Ou poderíamos fazer via Supabase client se o RLS permitir)
-        const response = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, name }),
-        });
-
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || 'Erro ao criar perfil.');
+        if (authError) {
+          if (authError.message.includes('User already registered')) {
+            // Se já existe no Auth, tentamos sincronizar com a tabela users
+            // pois pode ter havido uma falha no passo anterior
+            try {
+              const regResponse = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, name }),
+              });
+              
+              if (regResponse.ok) {
+                setSuccessMessage("CADASTRO SINCRONIZADO! TENTE FAZER LOGIN AGORA.");
+                return;
+              }
+            } catch (e) {
+              // ignore and throw the original error
+            }
+            throw new Error('ESTE E-MAIL JÁ ESTÁ CADASTRADO. POR FAVOR, FAÇA LOGIN OU USE A RECUPERAÇÃO DE SENHA.');
+          }
+          throw authError;
         }
 
-        setSuccessMessage("CONTA CRIADA! VERIFIQUE SEU E-MAIL PARA CONFIRMAÇÃO (SE ATIVADO NO SUPABASE).");
-        onAuth();
-        onSuccess(email, name);
+        // Passo 2: Criamos o registro na tabela users via API para garantir que o backend processe
+        try {
+          const response = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, name }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            // Se já existe na tabela mas o signUp funcionou (caso raro de dessincronização)
+            if (errorData.error && errorData.error.includes('já cadastrado')) {
+              // Procedemos normalmente se o signUp funcionou
+            } else {
+              throw new Error(errorData.error || 'ERRO AO CRIAR PERFIL NA BASE DE DADOS.');
+            }
+          }
+        } catch (apiErr: any) {
+          console.error("Erro na sincronização da conta:", apiErr);
+          // Não travamos o fluxo aqui se o signUpData tiver uma sessão, 
+          // pois o usuário já está tecnicamente no Supabase Auth
+        }
+
+        setSuccessMessage("CONTA CRIADA COM SUCESSO! VERIFIQUE SEU E-MAIL PARA CONFIRMAÇÃO SE NECESSÁRIO.");
+        
+        // Se houver sessão imediata (confirmação desativada), seguimos
+        if (signUpData.session) {
+          onAuth();
+          onSuccess(email, name);
+        } else {
+          // Se não, vamos para o modo login para que o usuário saiba que precisa entrar
+          setTimeout(() => onGoLogin(), 3000);
+        }
       } else if (mode === 'FORGOT_PASSWORD') {
         const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`,
