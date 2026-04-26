@@ -226,11 +226,11 @@ app.use(cors());
         .single();
 
       if (existingUser) {
-        // Se o usuário já existe mas por algum motivo a sessão do Supabase Auth falhou antes,
-        // garantimos que os dados básicos estão corretos e retornamos sucesso.
-        // Isso evita o erro de "Já cadastrado" quando o usuário está apenas tentando "reativar" sua conta parcial.
-        console.log(`[REGISTER] Operador ${email} já existe na tabela users. Retornando sucesso para sincronização.`);
-        return res.json({ success: true, email, status: existingUser.subscription_status, message: 'Operador já sincronizado.' });
+        console.log(`[REGISTER] Operador ${email} já existe na tabela users.`);
+        return res.status(400).json({ 
+          error: 'ESTE E-MAIL JÁ ESTÁ CADASTRADO. FAÇA LOGIN OU RECUPERE SUA SENHA.',
+          alreadyRegistered: true 
+        });
       }
 
       const { error: insertError } = await supabase
@@ -239,7 +239,7 @@ app.use(cors());
           email, 
           password, 
           name: name || 'Operador', 
-          subscription_status: 'pending', 
+          subscription_status: 'inactive', 
           created_at: new Date().toISOString(),
           history: { answeredQuestions: {} }
         }]);
@@ -690,7 +690,7 @@ app.use(cors());
           .from('users')
           .insert([{
             email,
-            subscription_status: 'pending',
+            subscription_status: 'inactive',
             created_at: new Date().toISOString(),
             name: 'Operador',
             history: { answeredQuestions: {} }

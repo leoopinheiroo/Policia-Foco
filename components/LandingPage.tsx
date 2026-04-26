@@ -9,6 +9,23 @@ interface LandingProps {
   onLogin: () => void;
 }
 
+const CategoryColumn = ({ title, icon, subjects }: { title: string, icon: string, subjects: any[] }) => (
+  <div className="bg-slate-900/50 border border-white/5 p-8 rounded-[2.5rem] hover:border-yellow-500/20 transition-all group">
+    <div className="flex items-center gap-3 mb-8">
+      <span className="text-2xl">{icon}</span>
+      <h3 className="text-xl font-black uppercase tracking-tighter text-slate-200 group-hover:text-yellow-500 transition-colors">{title}</h3>
+    </div>
+    <ul className="space-y-4">
+      {subjects.map(s => (
+        <li key={s.id} className="flex items-center gap-3 text-slate-400 group/item hover:text-white transition-colors cursor-default">
+          <span className="text-sm group-hover/item:scale-125 transition-transform">{s.icon}</span>
+          <span className="text-[11px] font-bold uppercase tracking-wider">{s.name}</span>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
 export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
   const [showStickyCTA, setShowStickyCTA] = useState(false);
 
@@ -482,6 +499,39 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
             <Step number="3" text="Nossa IA corrige sua redação com feedback pedagógico." />
             <Step number="4" text="Te mostramos exatamente o que estudar nos próximos dias." />
             <Step number="5" text="Você evolui muito mais rápido e domina o edital." />
+          </div>
+        </div>
+      </section>
+
+      {/* 6.1 MATÉRIAS COBERTAS */}
+      <section className="py-32 px-6 bg-slate-950">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-20">
+            <h2 className="text-4xl md:text-6xl font-black mb-6">Tudo o que você precisa em um só lugar</h2>
+            <p className="text-slate-400 text-xl max-w-3xl mx-auto">Mais de 40 matérias integradas com Inteligência Artificial para todos os concursos policiais do Brasil.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <CategoryColumn 
+              title="Básicas" 
+              icon="📚"
+              subjects={SUBJECTS.filter(s => s.category === 'BASICAS')} 
+            />
+            <CategoryColumn 
+              title="Jurídicas" 
+              icon="⚖️"
+              subjects={SUBJECTS.filter(s => s.category === 'JURIDICAS')} 
+            />
+            <CategoryColumn 
+              title="Humanas" 
+              icon="🌍"
+              subjects={SUBJECTS.filter(s => s.category === 'HUMANAS')} 
+            />
+            <CategoryColumn 
+              title="Específicas" 
+              icon="🛠️"
+              subjects={SUBJECTS.filter(s => s.category === 'ESPECIFICAS')} 
+            />
           </div>
         </div>
       </section>

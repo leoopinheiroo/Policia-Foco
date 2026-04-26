@@ -20,6 +20,7 @@ const REMEMBER_ME_KEY = 'PF_REMEMBER';
 export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup, onGoForgot, onSuccess, onBack }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
   const [saveCredentials, setSaveCredentials] = useState(() => localStorage.getItem(REMEMBER_ME_KEY) === 'true');
   const [isLoading, setIsLoading] = useState(false);
@@ -43,6 +44,12 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
     setSuccessMessage(null);
 
     try {
+      if (mode === 'SIGNUP') {
+        if (!name.trim()) throw new Error('POR FAVOR, INFORME SEU NOME COMPLETO.');
+        if (password.length < 6) throw new Error('A SENHA DEVE TER NO MÍNIMO 6 CARACTERES.');
+        if (password !== confirmPassword) throw new Error('AS SENHAS NÃO CONFEREM. VERIFIQUE E TENTE NOVAMENTE.');
+      }
+
       if (mode === 'LOGIN') {
         const { data, error: authError } = await supabase.auth.signInWithPassword({
           email,
@@ -103,24 +110,8 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
         });
 
         if (authError) {
-          if (authError.message.includes('User already registered')) {
-            // Se já existe no Auth, tentamos sincronizar com a tabela users
-            // pois pode ter havido uma falha no passo anterior
-            try {
-              const regResponse = await fetch('/api/auth/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password, name }),
-              });
-              
-              if (regResponse.ok) {
-                setSuccessMessage("CADASTRO SINCRONIZADO! TENTE FAZER LOGIN AGORA.");
-                return;
-              }
-            } catch (e) {
-              // ignore and throw the original error
-            }
-            throw new Error('ESTE E-MAIL JÁ ESTÁ CADASTRADO. POR FAVOR, FAÇA LOGIN OU USE A RECUPERAÇÃO DE SENHA.');
+          if (authError.message.toLowerCase().includes('already registered')) {
+            throw new Error('ESTE E-MAIL JÁ ESTÁ CADASTRADO. FAÇA LOGIN OU RECUPERE SUA SENHA.');
           }
           throw authError;
         }
@@ -135,29 +126,24 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
 
           if (!response.ok) {
             const errorData = await response.json();
-            // Se já existe na tabela mas o signUp funcionou (caso raro de dessincronização)
-            if (errorData.error && errorData.error.includes('já cadastrado')) {
-              // Procedemos normalmente se o signUp funcionou
+            if (errorData.error && errorData.error.toLowerCase().includes('cadastrado')) {
+              throw new Error('ESTE E-MAIL JÁ ESTÁ CADASTRADO. FAÇA LOGIN OU RECUPERE SUA SENHA.');
             } else {
               throw new Error(errorData.error || 'ERRO AO CRIAR PERFIL NA BASE DE DADOS.');
             }
           }
         } catch (apiErr: any) {
           console.error("Erro na sincronização da conta:", apiErr);
-          // Não travamos o fluxo aqui se o signUpData tiver uma sessão, 
-          // pois o usuário já está tecnicamente no Supabase Auth
+          if (apiErr.message.includes('CADASTRADO')) throw apiErr;
         }
 
-        setSuccessMessage("CONTA CRIADA COM SUCESSO! VERIFIQUE SEU E-MAIL PARA CONFIRMAÇÃO SE NECESSÁRIO.");
+        setSuccessMessage("CONTA CRIADA COM SUCESSO! REDIRECIONANDO PARA ESCOLHA DE PLANO...");
         
-        // Se houver sessão imediata (confirmação desativada), seguimos
-        if (signUpData.session) {
-          onAuth();
-          onSuccess(email, name);
-        } else {
-          // Se não, vamos para o modo login para que o usuário saiba que precisa entrar
-          setTimeout(() => onGoLogin(), 3000);
-        }
+        // Simular um delay pequeno para o usuário ler a mensagem
+        setTimeout(() => {
+          onAuth(); // Marca como logado no frontend
+          onSuccess(email, name); // Chama sucesso para App.tsx lidar com o redirecionamento para CHECKOUT
+        }, 1500);
       } else if (mode === 'FORGOT_PASSWORD') {
         const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`,
@@ -247,7 +233,7 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
 
              <div>
                 <div className="flex justify-between mb-2 ml-1">
-                   <label htmlFor="password-field" className="text-[10px] font-black uppercase tracking-widest text-slate-500">{mode === 'FORGOT_PASSWORD' ? 'Confirmação de Identidade' : 'Crie sua Senha'}</label>
+                   <label htmlFor="password-field" className="text-[10px] font-black uppercase tracking-widest text-slate-500">{mode === 'FORGOT_PASSWORD' ? 'Confirmação de Identidade' : mode === 'SIGNUP' ? 'Crie sua Senha' : 'Sua Senha'}</label>
                    {mode === 'LOGIN' && (
                      <button onClick={onGoForgot} type="button" className="text-[9px] text-yellow-500/40 hover:text-yellow-500 font-black uppercase tracking-widest transition">Esqueceu a senha?</button>
                    )}
@@ -279,6 +265,25 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
                   </div>
                 )}
              </div>
+
+              {mode === 'SIGNUP' && (
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                   <label htmlFor="confirm-password-field" className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">Confirme sua Senha</label>
+                   <div className="relative">
+                     <input 
+                        id="confirm-password-field"
+                        name="confirmPassword"
+                        type={showPassword ? "text" : "password"} 
+                        autoComplete="new-password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className={`w-full bg-slate-950 border border-white/5 rounded-2xl px-6 py-4 focus:ring-2 focus:ring-yellow-500 outline-none transition text-sm placeholder:text-slate-700 placeholder:tracking-normal ${!showPassword ? 'tracking-[0.3em]' : 'tracking-normal'}`}
+                        placeholder="Repita a senha"
+                     />
+                   </div>
+                </div>
+              )}
 
              {mode !== 'FORGOT_PASSWORD' && (
                <div className="flex items-center gap-3 py-1 ml-1 group cursor-pointer" onClick={() => setSaveCredentials(!saveCredentials)}>
