@@ -43,6 +43,10 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
     setError(null);
     setSuccessMessage(null);
 
+    // Verificação de configuração do Supabase antes de tentar qualquer coisa
+    const isSupabaseReady = !!supabase && !((supabase as any)._isMock);
+    console.log('[Auth] Verificando Supabase... Pronto:', isSupabaseReady);
+
     try {
       if (mode === 'SIGNUP') {
         if (!name.trim()) throw new Error('POR FAVOR, INFORME SEU NOME COMPLETO.');

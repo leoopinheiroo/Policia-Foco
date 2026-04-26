@@ -50,18 +50,15 @@ const App: React.FC = () => {
         setIsCheckingStatus(false);
         return;
       }
-      const { data: { subscription } } = auth.onAuthStateChange((event: any, session: any) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
         if (session?.user) {
           setIsLoggedIn(true);
           setUserEmail(session.user.email || '');
           // Fetch profile name if available
-          const from = (supabase as any)?.from;
-          if (from) {
-            from('users').select('name').eq('email', session.user.email).single()
-              .then(({ data }: any) => {
-                if (data?.name) setUserName(data.name);
-              });
-          }
+          supabase.from('users').select('name').eq('email', session.user.email).single()
+            .then(({ data }: any) => {
+              if (data?.name) setUserName(data.name);
+            });
         } else {
           setIsLoggedIn(false);
           setUserEmail('');
