@@ -2,15 +2,6 @@ import express from 'express';
 import Stripe from 'stripe';
 import cors from 'cors';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import {
-  fetchFilteredQuestions,
-  fetchSinglePoliceQuestion,
-  generateQuestionsForSubject,
-  correctEssayWithAi,
-  generateFlashcardsBatch,
-  mentoriaChat,
-  computeXpFromHistory,
-} from '../services/geminiServer';
 
 const app = express();
 
@@ -18,6 +9,9 @@ type AuthedRequest = express.Request & {
   supabase: SupabaseClient;
   user: { id: string; email: string };
 };
+
+/** Lazy-load AI module to avoid cold-start crashes on Vercel if Gemini deps fail */
+const loadGemini = () => import('../services/geminiServer');
 
 const sanitize = (val: string | undefined) => {
   let cleaned = (val || '').trim().replace(/^['"]|['"]$/g, '');
@@ -486,6 +480,7 @@ app.get('/api/user/ranking', checkSupabase, requireAuth, async (req, res) => {
       .limit(200);
     if (error) throw error;
 
+    const { computeXpFromHistory } = await loadGemini();
     const ranking = (users || [])
       .map((u: any) => {
         const { xp, level } = computeXpFromHistory(u.history || {});
@@ -514,10 +509,28 @@ app.post('/api/create-checkout-session', checkSupabase, requireAuth, async (req,
     const supabase = (req as AuthedRequest).supabase;
     const { email } = (req as AuthedRequest).user;
     const { plan } = req.body;
+
+    if (!plan || !['MONTHLY', 'ANNUAL'].includes(plan)) {
+      return res.status(400).json({ error: 'Plano inválido. Use MONTHLY ou ANNUAL.' });
+    }
+
     await ensureUserRow(supabase, email);
 
-    const stripe = getStripe();
-    const appUrl = (process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    let stripe: Stripe;
+    try {
+      stripe = getStripe();
+    } catch {
+      return res.status(500).json({
+        error: 'STRIPE_SECRET_KEY não configurada no ambiente de produção (Vercel).',
+      });
+    }
+
+    const appUrl = (
+      process.env.APP_URL ||
+      (typeof req.headers['x-forwarded-host'] === 'string'
+        ? `${req.headers['x-forwarded-proto'] || 'https'}://${req.headers['x-forwarded-host']}`
+        : `${req.protocol}://${req.get('host')}`)
+    ).replace(/\/$/, '');
 
     const prices: Record<string, string> = {
       MONTHLY: (process.env.STRIPE_PRICE_ID_MONTHLY || process.env.STRIPE_MONTHLY_PRICE_ID || '').trim(),
@@ -527,7 +540,7 @@ app.post('/api/create-checkout-session', checkSupabase, requireAuth, async (req,
     const priceId = prices[plan];
     if (!priceId) {
       return res.status(400).json({
-        error: `ID do preço para o plano ${plan} não configurado.`,
+        error: `ID do preço Stripe para o plano ${plan} não configurado. Defina STRIPE_PRICE_ID_${plan} na Vercel.`,
       });
     }
 
@@ -564,9 +577,9 @@ app.post('/api/create-checkout-session', checkSupabase, requireAuth, async (req,
   }
 });
 
-// --- AI proxies (authenticated) ---
 app.post('/api/ai/questions', checkSupabase, requireAuth, async (req, res) => {
   try {
+    const { fetchFilteredQuestions } = await loadGemini();
     const { filters = {}, count = 10 } = req.body;
     const user = await ensureUserRow((req as AuthedRequest).supabase, (req as AuthedRequest).user.email);
     const questions = await fetchFilteredQuestions(filters, count, user.history);
@@ -578,6 +591,7 @@ app.post('/api/ai/questions', checkSupabase, requireAuth, async (req, res) => {
 
 app.post('/api/ai/question', checkSupabase, requireAuth, async (req, res) => {
   try {
+    const { fetchSinglePoliceQuestion } = await loadGemini();
     const { subject, topic } = req.body;
     if (!subject || !topic) return res.status(400).json({ error: 'subject e topic obrigatórios.' });
     const question = await fetchSinglePoliceQuestion(subject, topic);
@@ -589,6 +603,7 @@ app.post('/api/ai/question', checkSupabase, requireAuth, async (req, res) => {
 
 app.post('/api/ai/simulado', checkSupabase, requireAuth, async (req, res) => {
   try {
+    const { generateQuestionsForSubject } = await loadGemini();
     const { subject, count = 10 } = req.body;
     if (!subject) return res.status(400).json({ error: 'subject obrigatório.' });
     const questions = await generateQuestionsForSubject(subject, count);
@@ -600,6 +615,7 @@ app.post('/api/ai/simulado', checkSupabase, requireAuth, async (req, res) => {
 
 app.post('/api/ai/essay', checkSupabase, requireAuth, async (req, res) => {
   try {
+    const { correctEssayWithAi } = await loadGemini();
     const { essay, theme } = req.body;
     if (!essay || !theme) return res.status(400).json({ error: 'essay e theme obrigatórios.' });
     const feedback = await correctEssayWithAi(essay, theme);
@@ -611,6 +627,7 @@ app.post('/api/ai/essay', checkSupabase, requireAuth, async (req, res) => {
 
 app.post('/api/ai/flashcards', checkSupabase, requireAuth, async (req, res) => {
   try {
+    const { generateFlashcardsBatch } = await loadGemini();
     const { subject, count = 10 } = req.body;
     if (!subject) return res.status(400).json({ error: 'subject obrigatório.' });
     const flashcards = await generateFlashcardsBatch(subject, count);
@@ -622,6 +639,7 @@ app.post('/api/ai/flashcards', checkSupabase, requireAuth, async (req, res) => {
 
 app.post('/api/ai/mentoria', checkSupabase, requireAuth, async (req, res) => {
   try {
+    const { mentoriaChat } = await loadGemini();
     const { messages = [], userMessage } = req.body;
     if (!userMessage) return res.status(400).json({ error: 'userMessage obrigatório.' });
     const text = await mentoriaChat(messages, userMessage);
