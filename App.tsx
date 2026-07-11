@@ -133,12 +133,16 @@ const App: React.FC = () => {
         }
       } else {
         setIsPaid(false);
-        if (!['CHECKOUT', 'LANDING', 'LOGIN', 'SIGNUP', 'FORGOT_PASSWORD', 'RESET_PASSWORD'].includes(currentView)) {
+        // Logado sem assinatura: sempre checkout (inclusive após F5 na landing)
+        if (!['LOGIN', 'SIGNUP', 'FORGOT_PASSWORD', 'RESET_PASSWORD'].includes(currentView)) {
           setCurrentView('CHECKOUT');
         }
       }
     } catch (error) {
       console.error('Error checking status:', error);
+      // Se a sessão existe mas o status falhou, ainda assim não jogar na landing
+      setIsPaid(false);
+      setCurrentView('CHECKOUT');
     } finally {
       setIsCheckingStatus(false);
     }
@@ -188,7 +192,7 @@ const App: React.FC = () => {
   }, [isLoggedIn, userEmail]);
 
   useEffect(() => {
-    if (!isCheckingStatus && isLoggedIn && !isPaid && !['CHECKOUT', 'LOGIN', 'SIGNUP', 'LANDING', 'FORGOT_PASSWORD', 'RESET_PASSWORD'].includes(currentView)) {
+    if (!isCheckingStatus && isLoggedIn && !isPaid && !['CHECKOUT', 'LOGIN', 'SIGNUP', 'FORGOT_PASSWORD', 'RESET_PASSWORD'].includes(currentView)) {
       setCurrentView('CHECKOUT');
     }
   }, [isLoggedIn, isPaid, currentView, isCheckingStatus]);
@@ -533,6 +537,15 @@ const App: React.FC = () => {
         />
       </div>
     );
+  }
+
+  // Logado sem plano: nunca voltar para a landing no F5
+  if (isLoggedIn && !isPaid) {
+    if (currentView === 'LOGIN') return <Auth mode="LOGIN" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
+    if (currentView === 'SIGNUP') return <Auth mode="SIGNUP" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
+    if (currentView === 'FORGOT_PASSWORD') return <Auth mode="FORGOT_PASSWORD" onAuth={() => {}} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => {}} onSuccess={() => {}} onBack={() => setCurrentView('LOGIN')} />;
+    if (currentView === 'RESET_PASSWORD') return <Auth mode="RESET_PASSWORD" onAuth={() => {}} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => {}} onSuccess={() => {}} onBack={() => setCurrentView('LOGIN')} />;
+    return <Checkout initialPlan={selectedPlan} onPaymentComplete={() => { setIsPaid(true); setCurrentView('HOME'); }} onBack={() => { supabase.auth.signOut(); setIsLoggedIn(false); setCurrentView('LANDING'); }} />;
   }
 
   if (currentView === 'LANDING') return <LandingPage onStart={handleStart} onLogin={() => setCurrentView('LOGIN')} />;
