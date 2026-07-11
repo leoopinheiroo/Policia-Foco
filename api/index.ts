@@ -172,15 +172,31 @@ app.get('/api/health', async (_req, res) => {
   });
 });
 
+// Health check do webhook (browser = GET; Stripe envia POST)
+app.get('/api/webhook', (_req, res) => {
+  res.status(200).json({
+    ok: true,
+    message: 'Endpoint de webhook Stripe ativo. O Stripe deve enviar POST com assinatura.',
+    expects: 'POST /api/webhook',
+    has_webhook_secret: !!(process.env.STRIPE_WEBHOOK_SECRET || '').trim(),
+  });
+});
+
 // Webhook ANTES do express.json() para preservar raw body
 app.post('/api/webhook', express.raw({ type: 'application/json' }), checkSupabase, async (req, res) => {
   const sig = req.headers['stripe-signature'];
-  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const endpointSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
   let event: Stripe.Event;
 
   try {
     const stripe = getStripe();
-    if (!sig || !endpointSecret) throw new Error('Missing signature or secret');
+    if (!endpointSecret) {
+      console.error('STRIPE_WEBHOOK_SECRET ausente no ambiente');
+      return res.status(500).send('Webhook secret not configured');
+    }
+    if (!sig) {
+      return res.status(400).send('Webhook Error: Missing stripe-signature header');
+    }
     event = stripe.webhooks.constructEvent(req.body, sig as string, endpointSecret);
   } catch (err: any) {
     console.error(`Webhook Error: ${err.message}`);

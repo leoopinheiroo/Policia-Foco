@@ -59,9 +59,13 @@ const App: React.FC = () => {
     }
 
     let unsub: (() => void) | undefined;
+    let cancelled = false;
+
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        if (cancelled) return;
+
         if (session?.user) {
           setIsLoggedIn(true);
           setUserEmail(session.user.email || '');
@@ -73,27 +77,40 @@ const App: React.FC = () => {
           setIsCheckingStatus(false);
         }
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, nextSession: any) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, nextSession: any) => {
+          // Evita apagar sessão no evento inicial se getSession já restaurou
+          if (event === 'INITIAL_SESSION') {
+            if (nextSession?.user) {
+              setIsLoggedIn(true);
+              setUserEmail(nextSession.user.email || '');
+            }
+            return;
+          }
+
           if (nextSession?.user) {
             setIsLoggedIn(true);
             setUserEmail(nextSession.user.email || '');
             const metaName = nextSession.user.user_metadata?.full_name;
             if (metaName) setUserName(metaName);
-          } else {
+          } else if (event === 'SIGNED_OUT') {
             setIsLoggedIn(false);
             setUserEmail('');
             setIsPaid(false);
             setUserHistory(null);
+            setCurrentView('LANDING');
           }
         });
         unsub = () => subscription?.unsubscribe();
       } catch (e) {
         console.error('Supabase Auth Error:', e);
-        setIsCheckingStatus(false);
+        if (!cancelled) setIsCheckingStatus(false);
       }
     })();
 
-    return () => unsub?.();
+    return () => {
+      cancelled = true;
+      unsub?.();
+    };
   }, []);
 
   const fetchUserHistory = async () => {
@@ -105,17 +122,20 @@ const App: React.FC = () => {
     }
   };
 
-  const checkUserStatus = async () => {
+  const checkUserStatus = async (opts?: { forceHomeOnActive?: boolean }) => {
     try {
       const data = await apiJson<{ status: string; name?: string }>('/api/user/status');
       if (data.name) setUserName(data.name);
       if (data.status === 'active') {
         setIsPaid(true);
-        if (['LOGIN', 'SIGNUP', 'CHECKOUT'].includes(currentView)) {
+        if (opts?.forceHomeOnActive || ['LOGIN', 'SIGNUP', 'CHECKOUT', 'LANDING'].includes(currentView)) {
           setCurrentView('HOME');
         }
       } else {
         setIsPaid(false);
+        if (!['CHECKOUT', 'LANDING', 'LOGIN', 'SIGNUP', 'FORGOT_PASSWORD', 'RESET_PASSWORD'].includes(currentView)) {
+          setCurrentView('CHECKOUT');
+        }
       }
     } catch (error) {
       console.error('Error checking status:', error);
@@ -126,12 +146,41 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('status') === 'success' && params.get('session_id')) {
+    const paymentSuccess = params.get('status') === 'success';
+
+    if (paymentSuccess) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
     if (isLoggedIn && userEmail) {
-      checkUserStatus();
+      // Após retorno do Stripe, tenta algumas vezes (webhook pode atrasar)
+      if (paymentSuccess) {
+        let attempts = 0;
+        const poll = async () => {
+          attempts += 1;
+          await checkUserStatus({ forceHomeOnActive: true });
+          if (attempts < 6) {
+            setTimeout(() => {
+              apiJson<{ status: string }>('/api/user/status')
+                .then((data) => {
+                  if (data.status === 'active') {
+                    setIsPaid(true);
+                    setCurrentView('HOME');
+                    setIsCheckingStatus(false);
+                  } else if (attempts < 6) {
+                    setTimeout(poll, 2000);
+                  }
+                })
+                .catch(() => {
+                  if (attempts < 6) setTimeout(poll, 2000);
+                });
+            }, 2000);
+          }
+        };
+        poll();
+      } else {
+        checkUserStatus({ forceHomeOnActive: true });
+      }
       fetchUserHistory();
     } else if (!isLoggedIn) {
       setIsCheckingStatus(false);
