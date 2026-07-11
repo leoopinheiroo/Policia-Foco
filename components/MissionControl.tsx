@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Target, Shield, Zap, CheckCircle2, Circle, Lock, ChevronRight, Trophy, BarChart3 } from 'lucide-react';
 import { SUBJECTS } from '../constants';
+import { apiJson } from '../services/apiClient';
 
 const MISSIONS = [
   {
@@ -31,18 +32,57 @@ const MISSIONS = [
   }
 ];
 
-export const MissionControl: React.FC = () => {
+interface MissionControlProps {
+  userHistory?: any;
+  onProgressSaved?: () => void;
+}
+
+export const MissionControl: React.FC<MissionControlProps> = ({ userHistory, onProgressSaved }) => {
   const [activeMission, setActiveMission] = useState(MISSIONS[0]);
   const [progress, setProgress] = useState<Record<string, { theory: boolean; exercises: boolean }>>({});
 
-  const toggleStatus = (topicId: string, type: 'theory' | 'exercises') => {
-    setProgress(prev => ({
-      ...prev,
+  useEffect(() => {
+    const mp = userHistory?.missionProgress || {};
+    const mapped: Record<string, { theory: boolean; exercises: boolean }> = {};
+    Object.keys(mp).forEach(key => {
+      mapped[key] = {
+        theory: !!(mp[key]?.theory || mp[key]?.theoryDone),
+        exercises: !!(mp[key]?.exercises || mp[key]?.exercisesDone),
+      };
+    });
+    setProgress(mapped);
+  }, [userHistory]);
+
+  const toggleStatus = async (topicId: string, type: 'theory' | 'exercises') => {
+    const next = {
+      ...progress,
       [topicId]: {
-        ...prev[topicId],
-        [type]: !prev[topicId]?.[type]
+        ...progress[topicId],
+        [type]: !progress[topicId]?.[type]
       }
-    }));
+    };
+    setProgress(next);
+
+    const missionProgress: Record<string, any> = {};
+    Object.entries(next).forEach(([id, val]) => {
+      missionProgress[id] = {
+        theoryDone: !!val.theory,
+        exercisesDone: !!val.exercises,
+        theory: !!val.theory,
+        exercises: !!val.exercises,
+        mastery: (val.theory ? 50 : 0) + (val.exercises ? 50 : 0),
+      };
+    });
+
+    try {
+      await apiJson('/api/user/history/save', {
+        method: 'POST',
+        body: JSON.stringify({ missionProgress }),
+      });
+      onProgressSaved?.();
+    } catch (e) {
+      console.error('Erro ao salvar progresso da missão:', e);
+    }
   };
 
   const calculateOverallProgress = () => {

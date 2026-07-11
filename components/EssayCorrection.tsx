@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { correctEssayWithAi } from '../services/geminiService';
 import { EssayFeedback } from '../types';
+import { apiFetch } from '../services/apiClient';
+import DOMPurify from 'dompurify';
 
 const COMMON_THEMES = [
   "O papel da segurança pública na preservação da democracia",
@@ -40,11 +42,9 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
         
         // Salvar no Supabase
         try {
-          await fetch('/api/user/essays/save', {
+          await apiFetch('/api/user/essays/save', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              email: userEmail,
               theme: theme,
               content: essay,
               correction_json: result,
@@ -191,7 +191,7 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
                    </h3>
                    <div 
                      className="text-slate-800 leading-loose text-lg font-serif whitespace-pre-wrap essay-marked-content"
-                     dangerouslySetInnerHTML={{ __html: feedback.markedEssay }}
+                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(feedback.markedEssay || '') }}
                    />
                    <style>{`
                      .essay-marked-content u {

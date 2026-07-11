@@ -20,9 +20,7 @@ export const getSupabase = () => {
   const supabaseUrl = sanitize(env.VITE_SUPABASE_URL);
   const supabaseAnonKey = sanitize(env.VITE_SUPABASE_ANON_KEY);
 
-  console.log('[Supabase Debug] Verificando chaves no frontend...');
-  console.log('[Supabase Debug] URL encontrada:', supabaseUrl ? `${supabaseUrl.substring(0, 15)}...` : 'NÃO ENCONTRADA');
-  console.log('[Supabase Debug] Key encontrada:', supabaseAnonKey ? `${supabaseAnonKey.substring(0, 10)}...` : 'NÃO ENCONTRADA');
+  console.log('[Supabase] Cliente frontend inicializado com anon key.');
 
   if (!supabaseUrl || !supabaseAnonKey || !supabaseUrl.startsWith('https://')) {
     return null;

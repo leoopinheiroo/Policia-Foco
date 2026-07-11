@@ -4,6 +4,7 @@ import { StructuredCommentary } from './StructuredCommentary';
 import { Question, SimuladoResult } from '../types';
 import { SUBJECTS } from '../constants';
 import { generateQuestionsForSubject } from '../services/geminiService';
+import { apiFetch } from '../services/apiClient';
 
 type SimuladoState = 'CONFIG' | 'LOADING' | 'RUNNING' | 'RESULT';
 
@@ -104,11 +105,9 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
 
     // Salvar no Supabase
     try {
-      await fetch('/api/user/simulados/save', {
+      await apiFetch('/api/user/simulados/save', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: userEmail,
           score_percentage: percentage,
           correct_count: correct,
           total_questions: questions.length,

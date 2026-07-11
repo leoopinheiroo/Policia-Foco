@@ -1,18 +1,12 @@
 
 import React, { useState } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
+import { apiJson } from '../services/apiClient';
 
 interface CheckoutProps {
   initialPlan: 'MONTHLY' | 'ANNUAL';
   onPaymentComplete: () => void;
   onBack: () => void;
 }
-
-const stripePromise = loadStripe(
-  (import.meta as any).env.VITE_STRIPE_PUBLISHABLE_KEY || 
-  (import.meta as any).env.STRIPE_PUBLISHABLE_KEY || 
-  ''
-);
 
 export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComplete, onBack }) => {
   const [step, setStep] = useState<'DETAILS' | 'PROCESSING'>('DETAILS');
@@ -31,40 +25,28 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
     if (selectedMethod === 'PIX') {
       setStep('DETAILS');
       setLoading(false);
-      // Aqui poderíamos abrir um modal ou apenas deixar as instruções na tela
       return;
     }
 
     try {
-      const email = localStorage.getItem('PF_USER_EMAIL');
-      if (!email) throw new Error('Email do usuário não encontrado. Faça login novamente.');
-
-      const response = await fetch('/api/create-checkout-session', {
+      const data = await apiJson<{ url?: string; error?: string }>('/api/create-checkout-session', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           plan: selectedPlan,
-          email: email,
-          method: selectedMethod // Enviamos o método preferido
+          method: selectedMethod
         }),
       });
 
-      const data = await response.json();
-
-      if (response.ok && data.url) {
+      if (data.url) {
         window.location.href = data.url;
       } else {
-        const msg = data.error || 'Falha ao iniciar sessão de pagamento.';
-        setErrorMessage(msg);
-        throw new Error(msg);
+        throw new Error(data.error || 'Falha ao iniciar sessão de pagamento.');
       }
     } catch (error: any) {
       console.error('Erro no checkout:', error);
       setStep('DETAILS');
       setLoading(false);
-      if (!errorMessage) setErrorMessage(error.message);
+      setErrorMessage(error.message);
     }
   };
 
@@ -213,7 +195,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                       <h3 className="text-xl font-black tracking-tight text-yellow-900 uppercase">Pagamento via PIX</h3>
                     </div>
                     <p className="text-sm text-yellow-800 font-bold mb-6 leading-relaxed">
-                      Transfira o valor exato para a chave abaixo e envie o comprovante para liberação imediata.
+                      PIX é liberação manual: transfira o valor, envie o comprovante e aguarde a confirmação. O botão abaixo só libera o acesso depois que o status for marcado como ativo.
                     </p>
                     <div className="flex flex-col md:flex-row gap-6 mb-6">
                       <div className="flex-1 bg-white p-6 rounded-2xl border-2 border-yellow-300 group cursor-pointer active:scale-95 transition-transform" onClick={() => {
@@ -231,16 +213,12 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                             e.stopPropagation();
                             setLoading(true);
                             try {
-                              const email = localStorage.getItem('PF_USER_EMAIL');
-                              if (email) {
-                                const res = await fetch(`/api/user/status?email=${encodeURIComponent(email)}`);
-                                const data = await res.json();
-                                if (data.status === 'active') {
-                                  alert("Pagamento confirmado! Acesso liberado.");
-                                  onPaymentComplete();
-                                } else {
-                                  alert("Pagamento ainda não detectado. Se já pagou, aguarde alguns minutos ou envie o comprovante.");
-                                }
+                              const data = await apiJson<{ status: string }>('/api/user/status');
+                              if (data.status === 'active') {
+                                alert("Pagamento confirmado! Acesso liberado.");
+                                onPaymentComplete();
+                              } else {
+                                alert("Ainda pendente. Após enviar o comprovante, aguarde a liberação manual.");
                               }
                             } catch (err) {
                               console.error(err);

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StructuredCommentary } from './StructuredCommentary';
 import { Question, ToastType } from '../types';
 import { fetchSinglePoliceQuestion } from '../services/geminiService';
+import { apiFetch } from '../services/apiClient';
 import { Bookmark, BookmarkCheck, Share2 } from 'lucide-react';
 
 interface QuestionRunnerProps {
@@ -10,6 +11,8 @@ interface QuestionRunnerProps {
   subject: string;
   topic: string;
   userEmail: string;
+  userHistory?: any;
+  onHistoryChange?: () => void;
   onBack: () => void;
   showToast: (msg: string, type?: ToastType) => void;
 }
@@ -20,6 +23,8 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
   subject, 
   topic, 
   userEmail,
+  userHistory,
+  onHistoryChange,
   onBack,
   showToast
 }) => {
@@ -47,11 +52,9 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
     const responseTime = Date.now() - startTimeRef.current;
 
     try {
-      await fetch('/api/user/history/save', {
+      await apiFetch('/api/user/history/save', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: userEmail,
           questionId: currentQ.id,
           result: {
             correct: isCorrect,
@@ -61,6 +64,7 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
           }
         })
       });
+      onHistoryChange?.();
     } catch (e) {
       console.error("Erro ao salvar histórico:", e);
     }
@@ -152,6 +156,13 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
     }
   }, [currentIndex, questions.length, isInitialLoading, prefetchNext]);
 
+  useEffect(() => {
+    const q = questions[currentIndex];
+    if (!q) return;
+    const saved = userHistory?.savedQuestions || [];
+    setIsSaved(saved.includes(q.id));
+  }, [currentIndex, questions, userHistory]);
+
   const handleNext = () => {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
@@ -166,14 +177,13 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
     setIsSaved(true);
     showToast("Questão salva no seu Dossiê de Evidências.", "success");
     try {
-      await fetch('/api/user/dossier/save', {
+      await apiFetch('/api/user/dossier/save', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: userEmail,
           questionId: currentQuestion.id
         })
       });
+      onHistoryChange?.();
     } catch (e) {
       console.error("Erro ao salvar no dossiê:", e);
     }

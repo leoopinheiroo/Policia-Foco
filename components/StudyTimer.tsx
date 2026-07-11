@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Play, Pause, RotateCcw, X, Timer, Coffee, Brain } from 'lucide-react';
+import { apiFetch } from '../services/apiClient';
 
 export const StudyTimer: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -9,19 +10,16 @@ export const StudyTimer: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
   const [totalStudyTime, setTotalStudyTime] = useState(0);
-  const [userEmail] = useState(() => localStorage.getItem('PF_USER_EMAIL') || '');
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedTimeRef = useRef<number>(0);
 
   const saveStudySession = async (duration: number) => {
-    if (duration <= 0 || !userEmail) return;
+    if (duration <= 0) return;
     try {
-      await fetch('/api/user/study/save', {
+      await apiFetch('/api/user/study/save', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: userEmail,
           duration: duration,
           type: 'TIMER'
         })

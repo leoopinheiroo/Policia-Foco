@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { INITIAL_FLASHCARDS, SUBJECTS } from '../constants';
 import { Flashcard } from '../types';
 import { generateFlashcardsBatch } from '../services/geminiService';
+import { apiFetch, apiJson } from '../services/apiClient';
 
 const STORAGE_KEY = 'PF_FLASHCARDS_MASTER_v1';
 
@@ -19,14 +20,11 @@ export const Flashcards: React.FC<FlashcardsProps> = ({ userEmail }) => {
   const [filterTopic, setFilterTopic] = useState<string>("TODOS");
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Fetch cards from Supabase on mount
   useEffect(() => {
     const fetchCards = async () => {
       try {
-        const res = await fetch(`/api/user/flashcards/list?email=${encodeURIComponent(userEmail)}`);
-        const data = await res.json();
+        const data = await apiJson<{ flashcards: any[] }>('/api/user/flashcards/list');
         if (data.flashcards && data.flashcards.length > 0) {
-          // Merge with initial cards, avoiding duplicates
           setCards(prev => {
             const existingFronts = new Set(prev.map(p => p.front));
             const uniqueNew = data.flashcards.filter((n: any) => !existingFronts.has(n.front));
@@ -79,13 +77,9 @@ export const Flashcards: React.FC<FlashcardsProps> = ({ userEmail }) => {
           // Save each new card to Supabase
           for (const card of newCards) {
             try {
-              await fetch('/api/user/flashcards/save', {
+              await apiFetch('/api/user/flashcards/save', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  email: userEmail,
-                  ...card
-                })
+                body: JSON.stringify({ ...card })
               });
             } catch (e) {
               console.error("Erro ao salvar flashcard no Supabase:", e);

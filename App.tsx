@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ViewState } from './types';
-import { SUBJECTS, MOCK_QUESTIONS } from './constants';
+import { SUBJECTS } from './constants';
 import { QuestionRunner } from './components/QuestionRunner';
 import { QuestionFilter } from './components/QuestionFilter';
 import { EssayCorrection } from './components/EssayCorrection';
@@ -22,12 +22,12 @@ import { Checkout } from './components/Checkout';
 import { Toast, ToastType } from './components/Toast';
 
 import { supabase } from './services/supabase';
+import { apiJson } from './services/apiClient';
 
 const App: React.FC = () => {
-  // Estado de autenticação persistente
-  const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('PF_LOGGED') === 'true');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
-  const [userEmail, setUserEmail] = useState(() => localStorage.getItem('PF_USER_EMAIL') || '');
+  const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState(() => localStorage.getItem('PF_USER_NAME') || 'Operador');
   const [selectedPlan, setSelectedPlan] = useState<'MONTHLY' | 'ANNUAL'>('ANNUAL');
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
@@ -42,82 +42,80 @@ const App: React.FC = () => {
   };
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    // Listen for auth state changes (Hardened)
-    try {
-      const auth = (supabase as any)?.auth;
-      if (!auth) {
-        setIsCheckingStatus(false);
-        return;
-      }
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
-        if (session?.user) {
-          setIsLoggedIn(true);
-          setUserEmail(session.user.email || '');
-          // Fetch profile name if available
-          supabase.from('users').select('name').eq('email', session.user.email).single()
-            .then(({ data }: any) => {
-              if (data?.name) setUserName(data.name);
-            });
-        } else {
-          setIsLoggedIn(false);
-          setUserEmail('');
-          setIsPaid(false);
-        }
-      });
-
-      return () => subscription?.unsubscribe();
-    } catch (e) {
-      console.error('Supabase Auth Listener Error:', e);
-      setIsCheckingStatus(false);
-    }
-  }, []);
-  
   const [currentView, setCurrentView] = useState<ViewState>('LANDING');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
-  const [intensiveSubject, setIntensiveSubject] = useState<string | null>(null);
   const [filteredQuestions, setFilteredQuestions] = useState<any[]>([]);
   const [userHistory, setUserHistory] = useState<any>(null);
 
-  const fetchUserHistory = async (email: string) => {
+  useEffect(() => {
+    localStorage.removeItem('PF_LOGGED');
+    localStorage.removeItem('PF_CRED_P');
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('view') === 'reset-password') {
+      setCurrentView('RESET_PASSWORD');
+    }
+
+    let unsub: (() => void) | undefined;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setIsLoggedIn(true);
+          setUserEmail(session.user.email || '');
+          const metaName = session.user.user_metadata?.full_name;
+          if (metaName) setUserName(metaName);
+        } else {
+          setIsLoggedIn(false);
+          setUserEmail('');
+          setIsCheckingStatus(false);
+        }
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, nextSession: any) => {
+          if (nextSession?.user) {
+            setIsLoggedIn(true);
+            setUserEmail(nextSession.user.email || '');
+            const metaName = nextSession.user.user_metadata?.full_name;
+            if (metaName) setUserName(metaName);
+          } else {
+            setIsLoggedIn(false);
+            setUserEmail('');
+            setIsPaid(false);
+            setUserHistory(null);
+          }
+        });
+        unsub = () => subscription?.unsubscribe();
+      } catch (e) {
+        console.error('Supabase Auth Error:', e);
+        setIsCheckingStatus(false);
+      }
+    })();
+
+    return () => unsub?.();
+  }, []);
+
+  const fetchUserHistory = async () => {
     try {
-      const res = await fetch(`/api/user/history?email=${encodeURIComponent(email)}`);
-      const data = await res.json();
+      const data = await apiJson<{ history: any }>('/api/user/history');
       setUserHistory(data.history);
     } catch (e) {
       console.error("Erro ao buscar histórico:", e);
     }
   };
 
-  const checkUserStatus = async (email: string) => {
-    if (!email) {
-      setIsCheckingStatus(false);
-      return;
-    }
+  const checkUserStatus = async () => {
     try {
-      const response = await fetch(`/api/user/status?email=${encodeURIComponent(email)}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Status check failed:', errorData);
-        // Se o erro for de configuração do banco, podemos mostrar um alerta ou estado específico
-        if (errorData.error && errorData.error.includes('Supabase')) {
-          // Opcional: setar um estado de erro global
-        }
-        return;
-      }
-      const data = await response.json();
+      const data = await apiJson<{ status: string; name?: string }>('/api/user/status');
+      if (data.name) setUserName(data.name);
       if (data.status === 'active') {
         setIsPaid(true);
-        if (data.name) setUserName(data.name);
-        // Só redireciona para a HOME se o usuário estiver em telas de transição
-        if (currentView === 'LOGIN' || currentView === 'SIGNUP' || currentView === 'CHECKOUT') {
+        if (['LOGIN', 'SIGNUP', 'CHECKOUT'].includes(currentView)) {
           setCurrentView('HOME');
         }
       } else {
         setIsPaid(false);
-        // NÃO redirecionamos automaticamente para o CHECKOUT aqui para permitir ver a Landing Page
       }
     } catch (error) {
       console.error('Error checking status:', error);
@@ -127,34 +125,28 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    // Handle Stripe Success Redirect
     const params = new URLSearchParams(window.location.search);
     if (params.get('status') === 'success' && params.get('session_id')) {
-      const email = localStorage.getItem('PF_USER_EMAIL');
-      if (email) checkUserStatus(email);
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
     if (isLoggedIn && userEmail) {
-      checkUserStatus(userEmail);
-      fetchUserHistory(userEmail);
-    } else {
+      checkUserStatus();
+      fetchUserHistory();
+    } else if (!isLoggedIn) {
       setIsCheckingStatus(false);
     }
   }, [isLoggedIn, userEmail]);
 
   useEffect(() => {
-    // Bloqueio de acesso para não pagantes
-    if (!isCheckingStatus && isLoggedIn && !isPaid && !['CHECKOUT', 'LOGIN', 'SIGNUP', 'LANDING', 'FORGOT_PASSWORD'].includes(currentView)) {
+    if (!isCheckingStatus && isLoggedIn && !isPaid && !['CHECKOUT', 'LOGIN', 'SIGNUP', 'LANDING', 'FORGOT_PASSWORD', 'RESET_PASSWORD'].includes(currentView)) {
       setCurrentView('CHECKOUT');
     }
   }, [isLoggedIn, isPaid, currentView, isCheckingStatus]);
 
   useEffect(() => {
-    localStorage.setItem('PF_LOGGED', isLoggedIn.toString());
-    localStorage.setItem('PF_USER_EMAIL', userEmail);
-    localStorage.setItem('PF_USER_NAME', userName);
-  }, [isLoggedIn, userEmail, userName]);
+    if (userName) localStorage.setItem('PF_USER_NAME', userName);
+  }, [userName]);
 
   const activeSubject = useMemo(() => 
     SUBJECTS.find(s => s.id === selectedSubjectId), 
@@ -199,32 +191,31 @@ const App: React.FC = () => {
     await supabase.auth.signOut();
     setIsLoggedIn(false);
     setIsPaid(false);
-    localStorage.removeItem('PF_LOGGED');
-    localStorage.removeItem('PF_PAID');
+    setUserEmail('');
+    setUserHistory(null);
     setCurrentView('LANDING');
   };
 
-  const handleAuthSuccess = (email: string, name?: string) => {
+  const handleAuthSuccess = async (email: string, name?: string) => {
     setIsLoggedIn(true);
     setUserEmail(email);
     if (name) setUserName(name);
-    localStorage.setItem('PF_LOGGED', 'true');
-    localStorage.setItem('PF_USER_EMAIL', email);
-    if (name) localStorage.setItem('PF_USER_NAME', name);
-    
-    // Ao logar ou cadastrar, verificamos o status e aí sim decidimos se vai para Checkout ou Home
-    fetch(`/api/user/status?email=${encodeURIComponent(email)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === 'active') {
-          setIsPaid(true);
-          if (data.name) setUserName(data.name);
-          setCurrentView('HOME');
-        } else {
-          setIsPaid(false);
-          setCurrentView('CHECKOUT');
-        }
-      });
+
+    try {
+      const data = await apiJson<{ status: string; name?: string }>('/api/user/status');
+      if (data.name) setUserName(data.name);
+      if (data.status === 'active') {
+        setIsPaid(true);
+        setCurrentView('HOME');
+      } else {
+        setIsPaid(false);
+        setCurrentView('CHECKOUT');
+      }
+      await fetchUserHistory();
+    } catch {
+      setIsPaid(false);
+      setCurrentView('CHECKOUT');
+    }
   };
 
   const handleStart = (plan: 'MONTHLY' | 'ANNUAL') => {
@@ -361,6 +352,8 @@ const App: React.FC = () => {
             subject={activeSubject?.name || 'Filtro'}
             topic={selectedTopic}
             userEmail={userEmail}
+            userHistory={userHistory}
+            onHistoryChange={fetchUserHistory}
             showToast={showToast}
             onBack={() => {
               setCurrentView(activeSubject ? 'TOPICS' : 'SUBJECTS');
@@ -405,7 +398,12 @@ const App: React.FC = () => {
       case 'SIMULADOS': return <Simulados userEmail={userEmail} />;
       case 'REDACAO': return <EssayCorrection userEmail={userEmail} />;
       case 'MENTORIA': return <MentoriaIA />;
-      case 'MISSION_CONTROL': return <MissionControl />;
+      case 'MISSION_CONTROL': return (
+        <MissionControl
+          userHistory={userHistory}
+          onProgressSaved={fetchUserHistory}
+        />
+      );
       case 'RANKING': return <Ranking userName={userName} />;
       case 'DOSSIER':
         return (
@@ -448,7 +446,7 @@ const App: React.FC = () => {
           isOpen={sidebarOpen}
           setIsOpen={setSidebarOpen}
           onLogout={handleLogout}
-          userType={userEmail === 'leonardo.pinheiros5366@gmail.com' ? 'ELITE' : 'RECRUTA'}
+          userType="RECRUTA"
           userName={userName}
         />
         <main className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all">
@@ -492,6 +490,7 @@ const App: React.FC = () => {
   if (currentView === 'LOGIN') return <Auth mode="LOGIN" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
   if (currentView === 'SIGNUP') return <Auth mode="SIGNUP" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
   if (currentView === 'FORGOT_PASSWORD') return <Auth mode="FORGOT_PASSWORD" onAuth={() => {}} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => {}} onSuccess={() => {}} onBack={() => setCurrentView('LOGIN')} />;
+  if (currentView === 'RESET_PASSWORD') return <Auth mode="RESET_PASSWORD" onAuth={() => {}} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => {}} onSuccess={() => {}} onBack={() => setCurrentView('LOGIN')} />;
   if (currentView === 'CHECKOUT') return <Checkout initialPlan={selectedPlan} onPaymentComplete={() => { setIsPaid(true); setCurrentView('HOME'); }} onBack={() => setCurrentView('LANDING')} />;
 
   // Fallback para evitar tela branca se o estado ficar inconsistente
@@ -499,14 +498,14 @@ const App: React.FC = () => {
 };
 
 // Componente de Erro para evitar tela branca total
-class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
-  state = { hasError: false, error: null };
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
+  state: { hasError: boolean; error: Error | null } = { hasError: false, error: null };
 
-  static getDerivedStateFromError(error: any) {
+  static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: any, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("ErrorBoundary caught an error", error, errorInfo);
   }
 
