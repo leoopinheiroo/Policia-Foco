@@ -1,6 +1,19 @@
-import { GoogleGenAI, Type } from "@google/genai";
+/** @google/genai carregado só na 1ª rota de IA — evita crash no cold start da Vercel. */
+type GenAIClient = InstanceType<(typeof import('@google/genai'))['GoogleGenAI']>;
 
-/** Tipos locais — ../types fica fora do bundle da function na Vercel. */
+let aiInstance: GenAIClient | null = null;
+
+const getAi = async (): Promise<GenAIClient> => {
+  if (!aiInstance) {
+    const { GoogleGenAI } = await import('@google/genai');
+    const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
+    if (!apiKey) {
+      throw new Error("CHAVE_API_AUSENTE: Configure GEMINI_API_KEY no servidor.");
+    }
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+};
 type QuestionType = 'CERTO_ERRADO' | 'MULTIPLA_ESCOLHA';
 type QuestionOrigin = 'BANCO' | 'IA';
 
@@ -79,19 +92,6 @@ interface EssayFeedback {
   }[];
 }
 
-let aiInstance: GoogleGenAI | null = null;
-
-const getAi = () => {
-  if (!aiInstance) {
-    const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
-    if (!apiKey) {
-      throw new Error("CHAVE_API_AUSENTE: Configure GEMINI_API_KEY no servidor.");
-    }
-    aiInstance = new GoogleGenAI({ apiKey });
-  }
-  return aiInstance;
-};
-
 const cleanJson = (text: string): string => {
   const firstBrace = text.indexOf('{');
   const lastBrace = text.lastIndexOf('}');
@@ -169,20 +169,20 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 4, delay = 2000): Pr
 }
 
 const QUESTION_SCHEMA = {
-  type: Type.OBJECT,
+  type: 'OBJECT',
   properties: {
-    banca: { type: Type.STRING },
-    ano: { type: Type.INTEGER },
-    orgao: { type: Type.STRING },
-    cargo: { type: Type.STRING },
-    materia: { type: Type.STRING },
-    assunto: { type: Type.STRING },
-    textoBase: { type: Type.STRING },
-    texto: { type: Type.STRING },
-    tipo: { type: Type.STRING, enum: ["CERTO_ERRADO", "MULTIPLA_ESCOLHA"] },
-    alternativas: { type: Type.ARRAY, items: { type: Type.STRING } },
-    correta: { type: Type.INTEGER },
-    comentario: { type: Type.STRING }
+    banca: { type: 'STRING' },
+    ano: { type: 'INTEGER' },
+    orgao: { type: 'STRING' },
+    cargo: { type: 'STRING' },
+    materia: { type: 'STRING' },
+    assunto: { type: 'STRING' },
+    textoBase: { type: 'STRING' },
+    texto: { type: 'STRING' },
+    tipo: { type: 'STRING', enum: ["CERTO_ERRADO", "MULTIPLA_ESCOLHA"] },
+    alternativas: { type: 'ARRAY', items: { type: 'STRING' } },
+    correta: { type: 'INTEGER' },
+    comentario: { type: 'STRING' }
   },
   required: ["banca", "ano", "orgao", "cargo", "materia", "assunto", "texto", "tipo", "alternativas", "correta", "comentario"]
 };
@@ -257,7 +257,7 @@ export const fetchFilteredQuestions = async (
 
     const statusGuidance = buildStatusGuidance(filters, history);
 
-    const response = await getAi().models.generateContent({
+    const response = await (await getAi()).models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
         MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para: ${filterDesc}.
@@ -271,7 +271,7 @@ export const fetchFilteredQuestions = async (
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.ARRAY,
+          type: 'ARRAY',
           items: QUESTION_SCHEMA
         }
       }
@@ -305,7 +305,7 @@ export const fetchSinglePoliceQuestion = async (
   if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
 
   const request = withRetry(async () => {
-    const response = await getAi().models.generateContent({
+    const response = await (await getAi()).models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
         MISSÃO: Gerar 1 questão técnica inédita EXCLUSIVAMENTE para:
@@ -346,7 +346,7 @@ export const generateQuestionsForSubject = async (
   if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
 
   const request = withRetry(async () => {
-    const response = await getAi().models.generateContent({
+    const response = await (await getAi()).models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
         MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: "${subject}".
@@ -355,7 +355,7 @@ export const generateQuestionsForSubject = async (
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.ARRAY,
+          type: 'ARRAY',
           items: QUESTION_SCHEMA
         }
       }
@@ -383,7 +383,7 @@ export const generateQuestionsForSubject = async (
 
 export const correctEssayWithAi = async (essay: string, theme: string): Promise<EssayFeedback> => {
   return withRetry(async () => {
-    const response = await getAi().models.generateContent({
+    const response = await (await getAi()).models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Você é um avaliador sênior de redações para concursos.
         TEMA PROPOSTO: "${theme}"
@@ -392,39 +392,39 @@ export const correctEssayWithAi = async (essay: string, theme: string): Promise<
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.OBJECT,
+          type: 'OBJECT',
           properties: {
-            score: { type: Type.NUMBER },
+            score: { type: 'NUMBER' },
             detailedScores: {
-              type: Type.OBJECT,
+              type: 'OBJECT',
               properties: {
-                estrutura: { type: Type.NUMBER },
-                argumentacao: { type: Type.NUMBER },
-                coesao: { type: Type.NUMBER },
-                gramatica: { type: Type.NUMBER },
-                total: { type: Type.NUMBER }
+                estrutura: { type: 'NUMBER' },
+                argumentacao: { type: 'NUMBER' },
+                coesao: { type: 'NUMBER' },
+                gramatica: { type: 'NUMBER' },
+                total: { type: 'NUMBER' }
               },
               required: ["estrutura", "argumentacao", "coesao", "gramatica", "total"]
             },
-            comments: { type: Type.STRING },
-            strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-            weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
-            grammarIssues: { type: Type.ARRAY, items: { type: Type.STRING } },
-            markedEssay: { type: Type.STRING },
+            comments: { type: 'STRING' },
+            strengths: { type: 'ARRAY', items: { type: 'STRING' } },
+            weaknesses: { type: 'ARRAY', items: { type: 'STRING' } },
+            grammarIssues: { type: 'ARRAY', items: { type: 'STRING' } },
+            markedEssay: { type: 'STRING' },
             improvementExamples: {
-              type: Type.ARRAY,
+              type: 'ARRAY',
               items: {
-                type: Type.OBJECT,
+                type: 'OBJECT',
                 properties: {
-                  original: { type: Type.STRING },
-                  corrected: { type: Type.STRING },
-                  explanation: { type: Type.STRING },
-                  paragraph: { type: Type.NUMBER }
+                  original: { type: 'STRING' },
+                  corrected: { type: 'STRING' },
+                  explanation: { type: 'STRING' },
+                  paragraph: { type: 'NUMBER' }
                 },
                 required: ["original", "corrected", "explanation", "paragraph"]
               }
             },
-            recommendation: { type: Type.STRING }
+            recommendation: { type: 'STRING' }
           },
           required: ["score", "detailedScores", "comments", "strengths", "weaknesses", "grammarIssues", "markedEssay", "improvementExamples", "recommendation"]
         }
@@ -445,7 +445,7 @@ export const generateFlashcardsBatch = async (
   if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
 
   const request = withRetry(async () => {
-    const response = await getAi().models.generateContent({
+    const response = await (await getAi()).models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `VOCÊ É UM ESPECIALISTA EM MEMORIZAÇÃO E ACTIVE RECALL.
         MISSÃO: Gerar ${count} flashcards de alto rendimento para a matéria: ${subject}.
@@ -453,13 +453,13 @@ export const generateFlashcardsBatch = async (
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.ARRAY,
+          type: 'ARRAY',
           items: {
-            type: Type.OBJECT,
+            type: 'OBJECT',
             properties: {
-              front: { type: Type.STRING },
-              back: { type: Type.STRING },
-              assunto: { type: Type.STRING }
+              front: { type: 'STRING' },
+              back: { type: 'STRING' },
+              assunto: { type: 'STRING' }
             },
             required: ["front", "back", "assunto"]
           }
@@ -493,7 +493,7 @@ export const mentoriaChat = async (
   userMessage: string
 ): Promise<string> => {
   return withRetry(async () => {
-    const response = await getAi().models.generateContent({
+    const response = await (await getAi()).models.generateContent({
       model: "gemini-3-flash-preview",
       config: {
         systemInstruction: "Você é um Mentor de Elite para concursos policiais brasileiros (PF, PRF, PC, PM). Seu objetivo é ajudar o aluno com estratégias de estudo, cronogramas, motivação e explicação de temas. Seja direto, técnico e motivador. Use termos policiais se apropriado (ex: \"Operador\", \"QAP\", \"Foco na Missão\")."
