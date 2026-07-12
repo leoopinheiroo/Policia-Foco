@@ -77,3 +77,5 @@ $RECYCLE.BIN/
 *.bak
 *.orig
 .history/
+.vercel
+.env*

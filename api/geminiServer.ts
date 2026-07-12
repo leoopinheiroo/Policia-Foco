@@ -1,5 +1,83 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Question, EssayFeedback, Flashcard, QuestionFilters, UserHistory } from "../types";
+
+/** Tipos locais — ../types fica fora do bundle da function na Vercel. */
+type QuestionType = 'CERTO_ERRADO' | 'MULTIPLA_ESCOLHA';
+type QuestionOrigin = 'BANCO' | 'IA';
+
+interface Question {
+  id: string;
+  banca: string;
+  ano: number;
+  orgao: string;
+  cargo: string;
+  materia: string;
+  assunto: string;
+  tema: string;
+  textoBase?: string;
+  texto: string;
+  tipo: QuestionType;
+  alternativas: string[];
+  correta: number;
+  comentario: string;
+  origem: QuestionOrigin;
+  isAiGenerated?: boolean;
+}
+
+interface Flashcard {
+  id: string;
+  front: string;
+  back: string;
+  materia: string;
+  assunto: string;
+  nextReview: number;
+  difficultyFactor: number;
+}
+
+interface UserHistory {
+  answeredQuestions: Record<string, {
+    correct: boolean;
+    answerIndex: number;
+    timestamp: number;
+    responseTime: number;
+    question: Question;
+  }>;
+  savedQuestions?: string[];
+  missionProgress?: Record<string, {
+    theoryDone: boolean;
+    exercisesDone: boolean;
+    mastery: number;
+  }>;
+}
+
+interface QuestionFilters {
+  materia?: string;
+  assunto?: string;
+  banca?: string;
+  ano?: number;
+  status?: 'TODAS' | 'RESOLVIDAS' | 'NAO_RESOLVIDAS' | 'ACERTEI' | 'ERREI';
+  tipos?: QuestionType[];
+}
+
+interface EssayFeedback {
+  score: number;
+  detailedScores: {
+    estrutura: number;
+    argumentacao: number;
+    coesao: number;
+    gramatica: number;
+    total: number;
+  };
+  comments: string;
+  strengths: string[];
+  weaknesses: string[];
+  grammarIssues: string[];
+  markedEssay: string;
+  improvementExamples: {
+    original: string;
+    corrected: string;
+    explanation: string;
+  }[];
+}
 
 let aiInstance: GoogleGenAI | null = null;
 
@@ -429,4 +507,3 @@ export const mentoriaChat = async (
   });
 };
 
-export { computeXpFromHistory } from './xp';

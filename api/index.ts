@@ -1,8 +1,19 @@
+import type { IncomingMessage, ServerResponse } from 'http';
 import express from 'express';
 import Stripe from 'stripe';
 import cors from 'cors';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { computeXpFromHistory } from './xp';
+
+/** Inline — import de ./xp quebra o bundle serverless na Vercel. */
+function computeXpFromHistory(history: any): { xp: number; level: number } {
+  const answered = Object.values(history?.answeredQuestions || {}) as any[];
+  const correct = answered.filter(q => q.correct === true || q.isCorrect === true).length;
+  const streak = history?.streak || 0;
+  const sessions = (history?.studySessions || []).length;
+  const xp = answered.length * 10 + correct * 15 + streak * 25 + sessions * 5;
+  const level = Math.max(1, Math.floor(xp / 350) + 1);
+  return { xp, level };
+}
 
 const app = express();
 
@@ -683,4 +694,9 @@ app.all('/api/*', (req, res) => {
   res.status(404).json({ error: `Rota não encontrada: ${req.url}` });
 });
 
-export default app;
+// Handler explícito — exportar só `app` causa FUNCTION_INVOCATION_FAILED na Vercel.
+export { app };
+
+export default function handler(req: IncomingMessage, res: ServerResponse) {
+  return (app as unknown as (req: IncomingMessage, res: ServerResponse) => void)(req, res);
+}
