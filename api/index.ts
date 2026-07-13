@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from 'http';
+﻿import type { IncomingMessage, ServerResponse } from 'http';
 import express from 'express';
 import Stripe from 'stripe';
 import cors from 'cors';
@@ -22,14 +22,516 @@ type AuthedRequest = express.Request & {
   user: { id: string; email: string };
 };
 
-import {
-  fetchFilteredQuestions,
-  fetchSinglePoliceQuestion,
-  generateQuestionsForSubject,
-  correctEssayWithAi,
-  generateFlashcardsBatch,
-  mentoriaChat,
-} from './geminiServer.js';
+/* ==== Gemini (inlined — Vercel não resolve imports externos de forma confiável) ==== */
+let aiInstance: any = null;
+
+const getAi = async (): Promise<any> => {
+  if (!aiInstance) {
+    // Dynamic import: NFT inclui o pacote sem executar no cold start.
+    const { GoogleGenAI } = await import('@google/genai');
+    const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
+    if (!apiKey) {
+      throw new Error("CHAVE_API_AUSENTE: Configure GEMINI_API_KEY no servidor.");
+    }
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+};
+type QuestionType = 'CERTO_ERRADO' | 'MULTIPLA_ESCOLHA';
+type QuestionOrigin = 'BANCO' | 'IA';
+
+interface Question {
+  id: string;
+  banca: string;
+  ano: number;
+  orgao: string;
+  cargo: string;
+  materia: string;
+  assunto: string;
+  tema: string;
+  textoBase?: string;
+  texto: string;
+  tipo: QuestionType;
+  alternativas: string[];
+  correta: number;
+  comentario: string;
+  origem: QuestionOrigin;
+  isAiGenerated?: boolean;
+}
+
+interface Flashcard {
+  id: string;
+  front: string;
+  back: string;
+  materia: string;
+  assunto: string;
+  nextReview: number;
+  difficultyFactor: number;
+}
+
+interface UserHistory {
+  answeredQuestions: Record<string, {
+    correct: boolean;
+    answerIndex: number;
+    timestamp: number;
+    responseTime: number;
+    question: Question;
+  }>;
+  savedQuestions?: string[];
+  missionProgress?: Record<string, {
+    theoryDone: boolean;
+    exercisesDone: boolean;
+    mastery: number;
+  }>;
+}
+
+interface QuestionFilters {
+  materia?: string;
+  assunto?: string;
+  banca?: string;
+  ano?: number;
+  status?: 'TODAS' | 'RESOLVIDAS' | 'NAO_RESOLVIDAS' | 'ACERTEI' | 'ERREI';
+  tipos?: QuestionType[];
+}
+
+interface EssayFeedback {
+  score: number;
+  detailedScores: {
+    estrutura: number;
+    argumentacao: number;
+    coesao: number;
+    gramatica: number;
+    total: number;
+  };
+  comments: string;
+  strengths: string[];
+  weaknesses: string[];
+  grammarIssues: string[];
+  markedEssay: string;
+  improvementExamples: {
+    original: string;
+    corrected: string;
+    explanation: string;
+  }[];
+}
+
+const cleanJson = (text: string): string => {
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  const firstBracket = text.indexOf('[');
+  const lastBracket = text.lastIndexOf(']');
+
+  let start = -1;
+  let end = -1;
+
+  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+    start = firstBrace;
+    end = lastBrace;
+  } else if (firstBracket !== -1) {
+    start = firstBracket;
+    end = lastBracket;
+  }
+
+  if (start !== -1 && end !== -1 && end > start) {
+    return text.substring(start, end + 1);
+  }
+
+  return text.replace(/```json/g, '').replace(/```/g, '').trim();
+};
+
+const memoryCache = new Map<string, { data: any; expires: number }>();
+const pendingRequests = new Map<string, Promise<any>>();
+
+const getCachedData = (key: string) => {
+  const entry = memoryCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expires) {
+    memoryCache.delete(key);
+    return null;
+  }
+  return entry.data;
+};
+
+const setCachedData = (key: string, data: any) => {
+  memoryCache.set(key, { data, expires: Date.now() + 5 * 60 * 1000 });
+};
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 4, delay = 2000): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    const errorMessage = (error?.message || '').toLowerCase();
+    const isQuotaError =
+      errorMessage.includes('429') ||
+      errorMessage.includes('resource_exhausted') ||
+      errorMessage.includes('quota') ||
+      errorMessage.includes('limit');
+
+    const isRetryable =
+      isQuotaError ||
+      errorMessage.includes('500') ||
+      errorMessage.includes('503') ||
+      errorMessage.includes('fetch') ||
+      errorMessage.includes('mismatch') ||
+      errorMessage.includes('content') ||
+      errorMessage.includes('server');
+
+    if (retries > 0 && isRetryable) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return withRetry(fn, retries - 1, delay * 2);
+    }
+
+    if (isQuotaError) {
+      throw new Error("Muitas solicitaÃ§Ãµes ao mesmo tempo. Aguarde alguns segundos e tente novamente.");
+    }
+    if (errorMessage.includes('fetch') || errorMessage.includes('connection')) {
+      throw new Error("ConexÃ£o instÃ¡vel com a IA. Tente novamente em instantes.");
+    }
+    throw new Error("Instabilidade momentÃ¢nea no servidor de IA. Tente novamente em alguns segundos.");
+  }
+}
+
+const QUESTION_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    banca: { type: 'STRING' },
+    ano: { type: 'INTEGER' },
+    orgao: { type: 'STRING' },
+    cargo: { type: 'STRING' },
+    materia: { type: 'STRING' },
+    assunto: { type: 'STRING' },
+    textoBase: { type: 'STRING' },
+    texto: { type: 'STRING' },
+    tipo: { type: 'STRING', enum: ["CERTO_ERRADO", "MULTIPLA_ESCOLHA"] },
+    alternativas: { type: 'ARRAY', items: { type: 'STRING' } },
+    correta: { type: 'INTEGER' },
+    comentario: { type: 'STRING' }
+  },
+  required: ["banca", "ano", "orgao", "cargo", "materia", "assunto", "texto", "tipo", "alternativas", "correta", "comentario"]
+};
+
+const DETAILED_COMMENTARY_INSTRUCTION = `
+PARA O CAMPO 'comentario', VOCÃŠ DEVE SEGUIR ESTE FORMATO OBRIGATÃ“RIO (USE ESTES MARCADORES EXATOS):
+
+[RESUMO DA CORRETA]
+Explicar de forma profunda e tÃ©cnica por que a alternativa correta estÃ¡ certa.
+
+[POR QUE AS OUTRAS ESTÃƒO ERRADAS?]
+Comente cada uma das alternativas incorretas.
+
+[MNEMÃ”NICO / DICA DE OURO]
+ForneÃ§a um macete ou dica prÃ¡tica.
+
+[RESUMO DO TEMA]
+Um parÃ¡grafo de fechamento sintetizando a teoria cobrada.
+`;
+
+function buildStatusGuidance(filters: QuestionFilters, history?: UserHistory | null): string {
+  const status = filters.status || 'TODAS';
+  if (status === 'TODAS' || !history?.answeredQuestions) return '';
+
+  const records = Object.values(history.answeredQuestions);
+  const wrongSubjects = new Map<string, number>();
+  const correctSubjects = new Map<string, number>();
+
+  records.forEach((r: any) => {
+    const materia = r.question?.materia || r.subject || 'Geral';
+    const ok = r.correct === true || r.isCorrect === true;
+    if (ok) correctSubjects.set(materia, (correctSubjects.get(materia) || 0) + 1);
+    else wrongSubjects.set(materia, (wrongSubjects.get(materia) || 0) + 1);
+  });
+
+  const topWrong = [...wrongSubjects.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([m]) => m);
+  const topCorrect = [...correctSubjects.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([m]) => m);
+
+  switch (status) {
+    case 'ERREI':
+      return `FOCO PEDAGÃ“GICO: O aluno errou questÃµes em: ${topWrong.join(', ') || 'diversas matÃ©rias'}. Gere questÃµes que reforcem esses pontos fracos.`;
+    case 'ACERTEI':
+      return `FOCO PEDAGÃ“GICO: O aluno acertou bem em: ${topCorrect.join(', ') || 'diversas matÃ©rias'}. Gere questÃµes um nÃ­vel acima nesses temas para consolidar.`;
+    case 'RESOLVIDAS':
+      return `FOCO: Variar temas jÃ¡ praticados pelo aluno, com pegadinhas novas (nÃ£o repetir enunciados Ã³bvios).`;
+    case 'NAO_RESOLVIDAS':
+      return `FOCO: Priorizar temas ainda pouco explorados pelo aluno, evitando repetir o nÃºcleo dos erros/acertos jÃ¡ registrados.`;
+    default:
+      return '';
+  }
+}
+
+const fetchFilteredQuestions = async (
+  filters: QuestionFilters,
+  count: number = 10,
+  history?: UserHistory | null
+): Promise<Question[]> => {
+  const cacheKey = `FQ:${JSON.stringify(filters)}:${count}`;
+  const cached = getCachedData(cacheKey);
+  if (cached) return cached;
+  if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
+
+  const request = withRetry(async () => {
+    const filterDesc = [
+      filters.materia ? `MatÃ©ria: ${filters.materia}` : '',
+      filters.assunto ? `Assunto: ${filters.assunto}` : '',
+      filters.banca ? `Banca: ${filters.banca}` : 'Banca: FGV ou CEBRASPE',
+      filters.ano ? `Ano: ${filters.ano}` : '',
+      filters.tipos && filters.tipos.length > 0 ? `Estilo: ${filters.tipos.join('/')}` : '',
+      filters.status && filters.status !== 'TODAS' ? `Filtro de status do aluno: ${filters.status}` : ''
+    ].filter(Boolean).join(', ');
+
+    const statusGuidance = buildStatusGuidance(filters, history);
+
+    const response = await (await getAi()).models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `VOCÃŠ Ã‰ UM ARQUITETO DE CONTEÃšDO EDUCACIONAL SÃŠNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
+        MISSÃƒO: Gerar um lote de ${count} questÃµes tÃ©cnicas inÃ©ditas EXCLUSIVAMENTE para: ${filterDesc}.
+        NÃ­vel: Muito DifÃ­cil (PadrÃ£o Delegado/Perito/Agente Federal).
+        ${statusGuidance}
+
+        DIRETRIZES DE QUALIDADE PEDAGÃ“GICA:
+        1. A alternativa correta deve ser irrefutÃ¡vel.
+        2. As incorretas devem ser plausÃ­veis (pegadinhas de alto nÃ­vel).
+        ${DETAILED_COMMENTARY_INSTRUCTION}`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: 'ARRAY',
+          items: QUESTION_SCHEMA
+        }
+      }
+    });
+
+    const items = JSON.parse(cleanJson(response.text || '[]'));
+    const results = items.map((q: any) => ({
+      ...q,
+      id: `filt-${Date.now()}-${Math.random()}`,
+      origem: 'IA',
+      isAiGenerated: true
+    }));
+
+    setCachedData(cacheKey, results);
+    return results;
+  });
+
+  pendingRequests.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    pendingRequests.delete(cacheKey);
+  }
+};
+
+const fetchSinglePoliceQuestion = async (
+  subject: string,
+  topic: string
+): Promise<Question | null> => {
+  const cacheKey = `SQ:${subject}:${topic}:${Date.now() - (Date.now() % 60000)}`;
+  if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
+
+  const request = withRetry(async () => {
+    const response = await (await getAi()).models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `VOCÃŠ Ã‰ UM ARQUITETO DE CONTEÃšDO EDUCACIONAL SÃŠNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
+        MISSÃƒO: Gerar 1 questÃ£o tÃ©cnica inÃ©dita EXCLUSIVAMENTE para:
+        MATÃ‰RIA: "${subject}"
+        ASSUNTO: "${topic}"
+        NÃ­vel: Muito DifÃ­cil. Banca: CEBRASPE ou FGV.
+        ${DETAILED_COMMENTARY_INSTRUCTION}`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: QUESTION_SCHEMA
+      }
+    });
+
+    const q = JSON.parse(cleanJson(response.text || '{}'));
+    return {
+      ...q,
+      id: `inf-${Date.now()}-${Math.random()}`,
+      origem: 'IA',
+      isAiGenerated: true
+    };
+  });
+
+  pendingRequests.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    pendingRequests.delete(cacheKey);
+  }
+};
+
+const generateQuestionsForSubject = async (
+  subject: string,
+  count: number
+): Promise<Question[]> => {
+  const cacheKey = `GS:${subject}:${count}`;
+  const cached = getCachedData(cacheKey);
+  if (cached) return cached;
+  if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
+
+  const request = withRetry(async () => {
+    const response = await (await getAi()).models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `VOCÃŠ Ã‰ UM ARQUITETO DE CONTEÃšDO EDUCACIONAL SÃŠNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
+        MISSÃƒO: Gerar um lote de ${count} questÃµes tÃ©cnicas inÃ©ditas EXCLUSIVAMENTE para a matÃ©ria: "${subject}".
+        NÃ­vel: Muito DifÃ­cil.
+        ${DETAILED_COMMENTARY_INSTRUCTION}`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: 'ARRAY',
+          items: QUESTION_SCHEMA
+        }
+      }
+    });
+
+    const items = JSON.parse(cleanJson(response.text || '[]'));
+    const results = items.map((q: any) => ({
+      ...q,
+      id: `sim-${Date.now()}-${Math.random()}`,
+      origem: 'IA',
+      isAiGenerated: true
+    }));
+
+    setCachedData(cacheKey, results);
+    return results;
+  });
+
+  pendingRequests.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    pendingRequests.delete(cacheKey);
+  }
+};
+
+const correctEssayWithAi = async (essay: string, theme: string): Promise<EssayFeedback> => {
+  return withRetry(async () => {
+    const response = await (await getAi()).models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `VocÃª Ã© um avaliador sÃªnior de redaÃ§Ãµes para concursos.
+        TEMA PROPOSTO: "${theme}"
+        REDAÃ‡ÃƒO PARA AVALIAÃ‡ÃƒO:
+        ${essay}`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            score: { type: 'NUMBER' },
+            detailedScores: {
+              type: 'OBJECT',
+              properties: {
+                estrutura: { type: 'NUMBER' },
+                argumentacao: { type: 'NUMBER' },
+                coesao: { type: 'NUMBER' },
+                gramatica: { type: 'NUMBER' },
+                total: { type: 'NUMBER' }
+              },
+              required: ["estrutura", "argumentacao", "coesao", "gramatica", "total"]
+            },
+            comments: { type: 'STRING' },
+            strengths: { type: 'ARRAY', items: { type: 'STRING' } },
+            weaknesses: { type: 'ARRAY', items: { type: 'STRING' } },
+            grammarIssues: { type: 'ARRAY', items: { type: 'STRING' } },
+            markedEssay: { type: 'STRING' },
+            improvementExamples: {
+              type: 'ARRAY',
+              items: {
+                type: 'OBJECT',
+                properties: {
+                  original: { type: 'STRING' },
+                  corrected: { type: 'STRING' },
+                  explanation: { type: 'STRING' },
+                  paragraph: { type: 'NUMBER' }
+                },
+                required: ["original", "corrected", "explanation", "paragraph"]
+              }
+            },
+            recommendation: { type: 'STRING' }
+          },
+          required: ["score", "detailedScores", "comments", "strengths", "weaknesses", "grammarIssues", "markedEssay", "improvementExamples", "recommendation"]
+        }
+      }
+    });
+
+    return JSON.parse(cleanJson(response.text || '{}'));
+  });
+};
+
+const generateFlashcardsBatch = async (
+  subject: string,
+  count: number
+): Promise<Flashcard[]> => {
+  const cacheKey = `FC:${subject}:${count}`;
+  const cached = getCachedData(cacheKey);
+  if (cached) return cached;
+  if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
+
+  const request = withRetry(async () => {
+    const response = await (await getAi()).models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `VOCÃŠ Ã‰ UM ESPECIALISTA EM MEMORIZAÃ‡ÃƒO E ACTIVE RECALL.
+        MISSÃƒO: Gerar ${count} flashcards de alto rendimento para a matÃ©ria: ${subject}.
+        REGRAS: front = pergunta/gatilho; back = explicaÃ§Ã£o rica com bases legais/mnemÃ´nicos.`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              front: { type: 'STRING' },
+              back: { type: 'STRING' },
+              assunto: { type: 'STRING' }
+            },
+            required: ["front", "back", "assunto"]
+          }
+        }
+      }
+    });
+
+    const items = JSON.parse(cleanJson(response.text || '[]'));
+    const results = items.map((f: any) => ({
+      ...f,
+      id: `fc-${Date.now()}-${Math.random()}`,
+      materia: subject,
+      nextReview: Date.now(),
+      difficultyFactor: 2.5
+    }));
+
+    setCachedData(cacheKey, results);
+    return results;
+  });
+
+  pendingRequests.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    pendingRequests.delete(cacheKey);
+  }
+};
+
+const mentoriaChat = async (
+  messages: { role: 'user' | 'model'; text: string }[],
+  userMessage: string
+): Promise<string> => {
+  return withRetry(async () => {
+    const response = await (await getAi()).models.generateContent({
+      model: "gemini-3-flash-preview",
+      config: {
+        systemInstruction: "VocÃª Ã© um Mentor de Elite para concursos policiais brasileiros (PF, PRF, PC, PM). Seu objetivo Ã© ajudar o aluno com estratÃ©gias de estudo, cronogramas, motivaÃ§Ã£o e explicaÃ§Ã£o de temas. Seja direto, tÃ©cnico e motivador. Use termos policiais se apropriado (ex: \"Operador\", \"QAP\", \"Foco na MissÃ£o\")."
+      },
+      contents: [
+        ...messages.map(m => ({ role: m.role, parts: [{ text: m.text }] })),
+        { role: 'user', parts: [{ text: userMessage }] }
+      ]
+    });
+    return response.text || "Desculpe, tive um problema na comunicaÃ§Ã£o. QAP?";
+  });
+};
+
+
+/* ==== fim Gemini ==== */
 
 const sanitize = (val: string | undefined) => {
   let cleaned = (val || '').trim().replace(/^['"]|['"]$/g, '');
@@ -64,7 +566,7 @@ const checkSupabase = (req: express.Request, res: express.Response, next: expres
     if (!url) missing.push('SUPABASE_URL');
     if (!serviceKey && !anonKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
     return res.status(500).json({
-      error: `Supabase não configurado: ${missing.join(', ') || 'erro de inicialização'}.`,
+      error: `Supabase nÃ£o configurado: ${missing.join(', ') || 'erro de inicializaÃ§Ã£o'}.`,
     });
   }
   (req as AuthedRequest).supabase = supabase;
@@ -75,18 +577,18 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
   try {
     const supabase = (req as AuthedRequest).supabase || getSupabase();
     if (!supabase) {
-      return res.status(500).json({ error: 'Supabase não configurado.' });
+      return res.status(500).json({ error: 'Supabase nÃ£o configurado.' });
     }
 
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
     if (!token) {
-      return res.status(401).json({ error: 'Não autenticado. Token ausente.' });
+      return res.status(401).json({ error: 'NÃ£o autenticado. Token ausente.' });
     }
 
     const { data, error } = await supabase.auth.getUser(token);
     if (error || !data.user?.email) {
-      return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
+      return res.status(401).json({ error: 'SessÃ£o invÃ¡lida ou expirada.' });
     }
 
     (req as AuthedRequest).supabase = supabase;
@@ -96,7 +598,7 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
     };
     next();
   } catch (e: any) {
-    return res.status(401).json({ error: e.message || 'Falha na autenticação.' });
+    return res.status(401).json({ error: e.message || 'Falha na autenticaÃ§Ã£o.' });
   }
 };
 
@@ -159,7 +661,7 @@ const updateStreak = (history: any) => {
 
 app.use(cors());
 
-app.get('/api/health', async (_req, res) => {
+app.get('/api/health', async (req, res) => {
   const supabase = getSupabase();
   const missingKeys: string[] = [];
   if (!process.env.SUPABASE_URL && !process.env.VITE_SUPABASE_URL) missingKeys.push('SUPABASE_URL');
@@ -180,12 +682,23 @@ app.get('/api/health', async (_req, res) => {
     }
   }
 
+  let gemini_module: string | null = null;
+  if (String(req.query.check_ai) === '1') {
+    try {
+      await getAi();
+      gemini_module = 'ok';
+    } catch (e: any) {
+      gemini_module = e?.message || String(e);
+    }
+  }
+
   res.json({
     status: 'ok',
     supabase: !!supabase,
     database_connectivity: dbStatus,
     database_error: dbError,
     missing_keys: missingKeys,
+    gemini_module,
     env: process.env.NODE_ENV,
   });
 });
@@ -274,7 +787,7 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), checkSupabas
 
 app.use(express.json({ limit: '2mb' }));
 
-// --- Profile bootstrap (após signup Supabase Auth) ---
+// --- Profile bootstrap (apÃ³s signup Supabase Auth) ---
 app.post('/api/user/ensure-profile', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { email } = (req as AuthedRequest).user;
@@ -307,7 +820,7 @@ app.get('/api/user/history', checkSupabase, requireAuth, async (req, res) => {
     const user = await ensureUserRow((req as AuthedRequest).supabase, email);
     res.json({ history: user.history || defaultHistory() });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar histórico.' });
+    res.status(500).json({ error: 'Erro ao buscar histÃ³rico.' });
   }
 });
 
@@ -338,7 +851,7 @@ app.post('/api/user/history/save', checkSupabase, requireAuth, async (req, res) 
     res.json({ success: true, history });
   } catch (error) {
     console.error('Save history error:', error);
-    res.status(500).json({ error: 'Erro ao salvar histórico.' });
+    res.status(500).json({ error: 'Erro ao salvar histÃ³rico.' });
   }
 });
 
@@ -347,7 +860,7 @@ app.post('/api/user/dossier/save', checkSupabase, requireAuth, async (req, res) 
     const supabase = (req as AuthedRequest).supabase;
     const { email } = (req as AuthedRequest).user;
     const { questionId, remove } = req.body;
-    if (!questionId) return res.status(400).json({ error: 'questionId obrigatório.' });
+    if (!questionId) return res.status(400).json({ error: 'questionId obrigatÃ³rio.' });
 
     const user = await ensureUserRow(supabase, email);
     const history = { ...defaultHistory(), ...(user.history || {}) };
@@ -366,7 +879,7 @@ app.post('/api/user/dossier/save', checkSupabase, requireAuth, async (req, res) 
     res.json({ success: true, savedQuestions: history.savedQuestions });
   } catch (error) {
     console.error('Dossier save error:', error);
-    res.status(500).json({ error: 'Erro ao salvar no dossiê.' });
+    res.status(500).json({ error: 'Erro ao salvar no dossiÃª.' });
   }
 });
 
@@ -395,7 +908,7 @@ app.post('/api/user/study/save', checkSupabase, requireAuth, async (req, res) =>
     res.json({ success: true });
   } catch (error) {
     console.error('Save study session error:', error);
-    res.status(500).json({ error: 'Erro ao salvar sessão de estudo.' });
+    res.status(500).json({ error: 'Erro ao salvar sessÃ£o de estudo.' });
   }
 });
 
@@ -431,7 +944,7 @@ app.get('/api/user/simulados/history', checkSupabase, requireAuth, async (req, r
     if (error) throw error;
     res.json({ history: data });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar histórico de simulados.' });
+    res.status(500).json({ error: 'Erro ao buscar histÃ³rico de simulados.' });
   }
 });
 
@@ -486,7 +999,7 @@ app.post('/api/user/essays/save', checkSupabase, requireAuth, async (req, res) =
     if (error) throw error;
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao salvar redação.' });
+    res.status(500).json({ error: 'Erro ao salvar redaÃ§Ã£o.' });
   }
 });
 
@@ -501,7 +1014,7 @@ app.get('/api/user/essays/history', checkSupabase, requireAuth, async (req, res)
     if (error) throw error;
     res.json({ history: data });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar histórico de redações.' });
+    res.status(500).json({ error: 'Erro ao buscar histÃ³rico de redaÃ§Ãµes.' });
   }
 });
 
@@ -522,7 +1035,7 @@ app.get('/api/user/ranking', checkSupabase, requireAuth, async (req, res) => {
           email: u.email,
           xp,
           level,
-          avatar: u.email === email ? '👤' : '👮',
+          avatar: u.email === email ? 'ðŸ‘¤' : 'ðŸ‘®',
           isCurrentUser: u.email === email,
         };
       })
@@ -544,7 +1057,7 @@ app.post('/api/create-checkout-session', checkSupabase, requireAuth, async (req,
     const { plan } = req.body;
 
     if (!plan || !['MONTHLY', 'ANNUAL'].includes(plan)) {
-      return res.status(400).json({ error: 'Plano inválido. Use MONTHLY ou ANNUAL.' });
+      return res.status(400).json({ error: 'Plano invÃ¡lido. Use MONTHLY ou ANNUAL.' });
     }
 
     await ensureUserRow(supabase, email);
@@ -554,7 +1067,7 @@ app.post('/api/create-checkout-session', checkSupabase, requireAuth, async (req,
       stripe = getStripe();
     } catch {
       return res.status(500).json({
-        error: 'STRIPE_SECRET_KEY não configurada no ambiente de produção (Vercel).',
+        error: 'STRIPE_SECRET_KEY nÃ£o configurada no ambiente de produÃ§Ã£o (Vercel).',
       });
     }
 
@@ -573,7 +1086,7 @@ app.post('/api/create-checkout-session', checkSupabase, requireAuth, async (req,
     const priceId = prices[plan];
     if (!priceId) {
       return res.status(400).json({
-        error: `ID do preço Stripe para o plano ${plan} não configurado. Defina STRIPE_PRICE_ID_${plan} na Vercel.`,
+        error: `ID do preÃ§o Stripe para o plano ${plan} nÃ£o configurado. Defina STRIPE_PRICE_ID_${plan} na Vercel.`,
       });
     }
 
@@ -618,26 +1131,26 @@ app.post('/api/ai/questions', checkSupabase, requireAuth, async (req, res) => {
     res.json({ questions });
   } catch (error: any) {
     console.error('AI questions error:', error);
-    res.status(500).json({ error: error.message || 'Erro ao gerar questões.' });
+    res.status(500).json({ error: error.message || 'Erro ao gerar questÃµes.' });
   }
 });
 
 app.post('/api/ai/question', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { subject, topic } = req.body;
-    if (!subject || !topic) return res.status(400).json({ error: 'subject e topic obrigatórios.' });
+    if (!subject || !topic) return res.status(400).json({ error: 'subject e topic obrigatÃ³rios.' });
     const question = await fetchSinglePoliceQuestion(subject, topic);
     res.json({ question });
   } catch (error: any) {
     console.error('AI question error:', error);
-    res.status(500).json({ error: error.message || 'Erro ao gerar questão.' });
+    res.status(500).json({ error: error.message || 'Erro ao gerar questÃ£o.' });
   }
 });
 
 app.post('/api/ai/simulado', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { subject, count = 10 } = req.body;
-    if (!subject) return res.status(400).json({ error: 'subject obrigatório.' });
+    if (!subject) return res.status(400).json({ error: 'subject obrigatÃ³rio.' });
     const questions = await generateQuestionsForSubject(subject, count);
     res.json({ questions });
   } catch (error: any) {
@@ -649,19 +1162,19 @@ app.post('/api/ai/simulado', checkSupabase, requireAuth, async (req, res) => {
 app.post('/api/ai/essay', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { essay, theme } = req.body;
-    if (!essay || !theme) return res.status(400).json({ error: 'essay e theme obrigatórios.' });
+    if (!essay || !theme) return res.status(400).json({ error: 'essay e theme obrigatÃ³rios.' });
     const feedback = await correctEssayWithAi(essay, theme);
     res.json({ feedback });
   } catch (error: any) {
     console.error('AI essay error:', error);
-    res.status(500).json({ error: error.message || 'Erro ao corrigir redação.' });
+    res.status(500).json({ error: error.message || 'Erro ao corrigir redaÃ§Ã£o.' });
   }
 });
 
 app.post('/api/ai/flashcards', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { subject, count = 10 } = req.body;
-    if (!subject) return res.status(400).json({ error: 'subject obrigatório.' });
+    if (!subject) return res.status(400).json({ error: 'subject obrigatÃ³rio.' });
     const flashcards = await generateFlashcardsBatch(subject, count);
     res.json({ flashcards });
   } catch (error: any) {
@@ -673,7 +1186,7 @@ app.post('/api/ai/flashcards', checkSupabase, requireAuth, async (req, res) => {
 app.post('/api/ai/mentoria', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { messages = [], userMessage } = req.body;
-    if (!userMessage) return res.status(400).json({ error: 'userMessage obrigatório.' });
+    if (!userMessage) return res.status(400).json({ error: 'userMessage obrigatÃ³rio.' });
     const text = await mentoriaChat(messages, userMessage);
     res.json({ text });
   } catch (error: any) {
@@ -688,10 +1201,10 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 });
 
 app.all('/api/*', (req, res) => {
-  res.status(404).json({ error: `Rota não encontrada: ${req.url}` });
+  res.status(404).json({ error: `Rota nÃ£o encontrada: ${req.url}` });
 });
 
-// Handler explícito — exportar só `app` causa FUNCTION_INVOCATION_FAILED na Vercel.
+// Handler explÃ­cito â€” exportar sÃ³ `app` causa FUNCTION_INVOCATION_FAILED na Vercel.
 export { app };
 
 export default function handler(req: IncomingMessage, res: ServerResponse) {

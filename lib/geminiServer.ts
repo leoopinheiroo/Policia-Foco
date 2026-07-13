@@ -1,9 +1,6 @@
-/** @google/genai carregado só na 1ª rota de IA — evita crash no cold start da Vercel. */
-type GenAIClient = InstanceType<(typeof import('@google/genai'))['GoogleGenAI']>;
+let aiInstance: any = null;
 
-let aiInstance: GenAIClient | null = null;
-
-const getAi = async (): Promise<GenAIClient> => {
+const getAi = async (): Promise<any> => {
   if (!aiInstance) {
     const { GoogleGenAI } = await import('@google/genai');
     const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
