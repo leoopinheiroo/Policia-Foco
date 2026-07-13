@@ -12,6 +12,8 @@ interface SimuladosProps {
 }
 
 const PREFETCH_BATCH = 2;
+/** Cada lote de 2 questões deve responder em no máximo 15s; senão cancela e tenta de novo. */
+const BATCH_TIMEOUT_MS = 15_000;
 
 export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
   const [state, setState] = useState<SimuladoState>('CONFIG');
@@ -73,30 +75,49 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
     return next;
   };
 
-  /** Busca lote com retries agressivos — não desiste fácil. */
+  /** Busca lote com timeout de 15s — se estourar, cancela e tenta de novo até conseguir. */
   const fetchBatchWithRetry = async (
     subjectName: string,
     needed: number,
     sessionId: number
   ): Promise<Question[]> => {
-    let delay = 1200;
-    for (let attempt = 1; attempt <= 10; attempt++) {
-      if (activeSessionRef.current !== sessionId) return [];
+    let attempt = 0;
+    while (activeSessionRef.current === sessionId) {
+      attempt += 1;
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), BATCH_TIMEOUT_MS);
+      const startedAt = Date.now();
+
       try {
         setLoadingProgress({
           ready: questionsRef.current.length,
           total: planRef.current.length,
-          label: `${subjectName} (tentativa ${attempt})`,
+          label: `${subjectName} · tentativa ${attempt} · limite 15s`,
         });
-        const batch = await generateQuestionsForSubject(subjectName, Math.min(PREFETCH_BATCH, needed));
+
+        const batch = await generateQuestionsForSubject(
+          subjectName,
+          Math.min(PREFETCH_BATCH, needed),
+          { signal: controller.signal }
+        );
+        window.clearTimeout(timer);
+
         if (Array.isArray(batch) && batch.length > 0) {
           return batch.slice(0, needed);
         }
-      } catch (e) {
-        console.warn(`[Simulado] Falha lote ${subjectName} #${attempt}:`, e);
+        console.warn(`[Simulado] Lote vazio (${subjectName}) #${attempt} — retry`);
+      } catch (e: any) {
+        window.clearTimeout(timer);
+        const elapsed = Date.now() - startedAt;
+        const timedOut = controller.signal.aborted || elapsed >= BATCH_TIMEOUT_MS;
+        console.warn(
+          `[Simulado] ${timedOut ? 'Timeout 15s' : 'Erro'} em ${subjectName} #${attempt}:`,
+          e?.message || e
+        );
       }
-      await new Promise(r => setTimeout(r, delay));
-      delay = Math.min(Math.round(delay * 1.4), 12000);
+
+      // Pausa curta antes do próximo attempt (não acumula espera longa)
+      await new Promise(r => setTimeout(r, 600));
     }
     return [];
   };
@@ -488,7 +509,7 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
             </span>
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
               Carregadas: {loaded}
-              {isPrefetching ? ' · gerando +2...' : ''}
+              {isPrefetching ? ' · gerando +2 (máx 15s)...' : ''}
             </span>
             <div className="h-1.5 w-40 sm:w-48 bg-slate-200 rounded-full overflow-hidden">
               <div

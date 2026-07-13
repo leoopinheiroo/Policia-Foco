@@ -25,13 +25,15 @@ export const fetchSinglePoliceQuestion = async (
 
 export const generateQuestionsForSubject = async (
   subject: string,
-  count: number
+  count: number,
+  options?: { signal?: AbortSignal }
 ): Promise<Question[]> => {
   const data = await apiJson<{ questions: Question[] }>('/api/ai/simulado', {
     method: 'POST',
     body: JSON.stringify({ subject, count }),
+    signal: options?.signal,
   });
-  return data.questions;
+  return data.questions ?? [];
 };
 
 export const correctEssayWithAi = async (essay: string, theme: string): Promise<EssayFeedback> => {

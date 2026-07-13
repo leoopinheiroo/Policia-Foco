@@ -22,10 +22,17 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
 }
 
 export async function apiJson<T = any>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await apiFetch(path, options);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error((data as any)?.error || `Erro na API (${res.status})`);
+  try {
+    const res = await apiFetch(path, options);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error((data as any)?.error || `Erro na API (${res.status})`);
+    }
+    return data as T;
+  } catch (e: any) {
+    if (e?.name === 'AbortError' || options.signal?.aborted) {
+      throw new Error('TIMEOUT');
+    }
+    throw e;
   }
-  return data as T;
 }
