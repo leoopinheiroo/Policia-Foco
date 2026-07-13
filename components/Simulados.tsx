@@ -73,13 +73,35 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
     return next;
   };
 
-  /** Busca até `needed` questões (em geral 2) da matéria indicada. */
-  const fetchBatch = async (subjectName: string, needed: number): Promise<Question[]> => {
-    const batch = await generateQuestionsForSubject(subjectName, Math.min(PREFETCH_BATCH, needed));
-    return Array.isArray(batch) ? batch.slice(0, needed) : [];
+  /** Busca lote com retries agressivos — não desiste fácil. */
+  const fetchBatchWithRetry = async (
+    subjectName: string,
+    needed: number,
+    sessionId: number
+  ): Promise<Question[]> => {
+    let delay = 1200;
+    for (let attempt = 1; attempt <= 10; attempt++) {
+      if (activeSessionRef.current !== sessionId) return [];
+      try {
+        setLoadingProgress({
+          ready: questionsRef.current.length,
+          total: planRef.current.length,
+          label: `${subjectName} (tentativa ${attempt})`,
+        });
+        const batch = await generateQuestionsForSubject(subjectName, Math.min(PREFETCH_BATCH, needed));
+        if (Array.isArray(batch) && batch.length > 0) {
+          return batch.slice(0, needed);
+        }
+      } catch (e) {
+        console.warn(`[Simulado] Falha lote ${subjectName} #${attempt}:`, e);
+      }
+      await new Promise(r => setTimeout(r, delay));
+      delay = Math.min(Math.round(delay * 1.4), 12000);
+    }
+    return [];
   };
 
-  /** Continua carregando de 2 em 2 em background até o total. */
+  /** Continua carregando de 2 em 2 até o total — erros só atrasam, não param. */
   const continuePrefetch = useCallback(async (sessionId: number) => {
     if (prefetchingRef.current) return;
     prefetchingRef.current = true;
@@ -90,44 +112,60 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
         activeSessionRef.current === sessionId &&
         questionsRef.current.length < planRef.current.length
       ) {
-        // Mantém pelo menos 2 à frente do índice atual
         const ahead = questionsRef.current.length - currentIndexRef.current;
+        // Buffer ok: espera o aluno avançar, mas mantém o loop vivo
         if (ahead > 3) {
-          await new Promise(r => setTimeout(r, 400));
+          await new Promise(r => setTimeout(r, 500));
           continue;
         }
 
         const remaining = planRef.current.length - questionsRef.current.length;
         const take = Math.min(PREFETCH_BATCH, remaining);
+
+        // Cursor circular: se passou do fim, reinicia para completar faltantes
+        if (planIndexRef.current >= planRef.current.length) {
+          planIndexRef.current = 0;
+        }
         const start = planIndexRef.current;
-        const subjectsSlice = planRef.current.slice(start, start + take);
+        const subjectsSlice: string[] = [];
+        for (let i = 0; i < take; i++) {
+          subjectsSlice.push(planRef.current[(start + i) % planRef.current.length]);
+        }
         planIndexRef.current = start + take;
 
-        // Agrupa por matéria para 1 request quando as 2 forem da mesma
         const bySubject = new Map<string, number>();
         for (const name of subjectsSlice) {
           bySubject.set(name, (bySubject.get(name) || 0) + 1);
         }
 
         let got: Question[] = [];
-        for (const [name, count] of bySubject) {
-          if (activeSessionRef.current !== sessionId) return;
-          setLoadingProgress({
-            ready: questionsRef.current.length,
-            total: planRef.current.length,
-            label: name,
-          });
-          const batch = await fetchBatch(name, count);
-          got = appendUnique(got, batch);
+        try {
+          for (const [name, count] of bySubject) {
+            if (activeSessionRef.current !== sessionId) return;
+            const batch = await fetchBatchWithRetry(name, count, sessionId);
+            got = appendUnique(got, batch);
+          }
+        } catch (e) {
+          console.warn('[Simulado] Erro no ciclo de prefetch (seguindo):', e);
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
         }
 
         if (activeSessionRef.current !== sessionId) return;
 
         if (got.length === 0) {
-          // Recua o cursor do plano para tentar de novo depois
-          planIndexRef.current = Math.max(start, planIndexRef.current - take);
-          await new Promise(r => setTimeout(r, 1500));
-          continue;
+          // Fallback: tenta qualquer matéria do plano
+          const fallback = planRef.current[questionsRef.current.length % planRef.current.length];
+          try {
+            const batch = await fetchBatchWithRetry(fallback, take, sessionId);
+            got = appendUnique(got, batch);
+          } catch (e) {
+            console.warn('[Simulado] Fallback também falhou:', e);
+          }
+          if (got.length === 0) {
+            await new Promise(r => setTimeout(r, 2500));
+            continue;
+          }
         }
 
         const merged = appendUnique(questionsRef.current, got).slice(0, planRef.current.length);
@@ -136,15 +174,38 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
         setLoadingProgress({
           ready: merged.length,
           total: planRef.current.length,
-          label: 'Buffer ativo',
+          label: `Buffer ${merged.length}/${planRef.current.length}`,
         });
       }
     } catch (e) {
-      console.error('Prefetch simulado:', e);
+      console.error('[Simulado] Prefetch interrompido, reiniciando:', e);
+      // Reinicia sozinho se a sessão ainda estiver ativa e incompleta
+      if (
+        activeSessionRef.current === sessionId &&
+        questionsRef.current.length < planRef.current.length
+      ) {
+        prefetchingRef.current = false;
+        setIsPrefetching(false);
+        await new Promise(r => setTimeout(r, 2000));
+        void continuePrefetch(sessionId);
+        return;
+      }
     } finally {
       if (activeSessionRef.current === sessionId) {
         prefetchingRef.current = false;
         setIsPrefetching(false);
+        // Se ainda faltam itens, agenda nova rodada
+        if (questionsRef.current.length < planRef.current.length) {
+          setTimeout(() => {
+            if (
+              activeSessionRef.current === sessionId &&
+              questionsRef.current.length < planRef.current.length &&
+              !prefetchingRef.current
+            ) {
+              void continuePrefetch(sessionId);
+            }
+          }, 1500);
+        }
       }
     }
   }, []);
@@ -167,11 +228,11 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
     setAnswers({});
     setCurrentQIndex(0);
     setTargetLength(examLength);
+    setIsWaitingNext(false);
     setState('LOADING');
     setLoadingProgress({ ready: 0, total: examLength, label: 'Primeiras questões' });
 
     try {
-      // Carrega só as 2 primeiras e já libera o simulado
       const firstSubjects = plan.slice(0, PREFETCH_BATCH);
       planIndexRef.current = firstSubjects.length;
 
@@ -181,10 +242,21 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
       }
 
       let initial: Question[] = [];
-      for (const [name, count] of bySubject) {
-        setLoadingProgress({ ready: initial.length, total: examLength, label: name });
-        const batch = await fetchBatch(name, count);
-        initial = appendUnique(initial, batch);
+      let bootAttempt = 0;
+      while (initial.length === 0 && bootAttempt < 8 && activeSessionRef.current === sessionId) {
+        bootAttempt += 1;
+        for (const [name, count] of bySubject) {
+          setLoadingProgress({
+            ready: initial.length,
+            total: examLength,
+            label: `${name} (início #${bootAttempt})`,
+          });
+          const batch = await fetchBatchWithRetry(name, count, sessionId);
+          initial = appendUnique(initial, batch);
+        }
+        if (initial.length === 0) {
+          await new Promise(r => setTimeout(r, 2000));
+        }
       }
 
       if (activeSessionRef.current !== sessionId) return;
@@ -196,8 +268,6 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
       setQuestions(initial);
       setState('RUNNING');
       window.scrollTo(0, 0);
-
-      // Segue carregando 2 a 2 em background
       void continuePrefetch(sessionId);
     } catch (error: any) {
       console.error(error);
@@ -220,29 +290,35 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
       return;
     }
 
-    // Ainda faltam questões do total: espera o buffer
+    // Faltam questões: espera sem desistir, reativando o prefetch
     if (questionsRef.current.length < targetLength) {
       setIsWaitingNext(true);
-      void continuePrefetch(activeSessionRef.current);
       const started = questionsRef.current.length;
-      for (let i = 0; i < 60; i++) {
-        await new Promise(r => setTimeout(r, 500));
+      const sessionId = activeSessionRef.current;
+
+      for (let i = 0; i < 180; i++) {
+        void continuePrefetch(sessionId);
+        await new Promise(r => setTimeout(r, 1000));
         if (questionsRef.current.length > started) {
           setCurrentQIndex(started);
           setIsWaitingNext(false);
           window.scrollTo(0, 0);
-          void continuePrefetch(activeSessionRef.current);
+          void continuePrefetch(sessionId);
           return;
         }
-        if (!prefetchingRef.current && i > 4) break;
+        setLoadingProgress({
+          ready: questionsRef.current.length,
+          total: targetLength,
+          label: `Aguardando próxima… (${i + 1}s)`,
+        });
       }
+
+      // Ainda sem sucesso após ~3 min: continua tentando em background, sem alert bloqueante
       setIsWaitingNext(false);
-      alert('Ainda estamos gerando a próxima questão. Aguarde alguns segundos e tente de novo.');
-      void continuePrefetch(activeSessionRef.current);
+      void continuePrefetch(sessionId);
       return;
     }
 
-    // Chegou no fim real
     await finishSimulado();
   };
 
@@ -475,7 +551,7 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
                 disabled={isWaitingNext}
                 className="bg-slate-900 text-white px-8 sm:px-12 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 shadow-xl disabled:opacity-60"
               >
-                {isWaitingNext ? 'CARREGANDO...' : atLastLoaded && stillGenerating ? 'PRÓXIMA (GERANDO) →' : 'Próximo Item →'}
+                {isWaitingNext ? 'GERANDO PRÓXIMA…' : atLastLoaded && stillGenerating ? 'PRÓXIMA (GERANDO) →' : 'Próximo Item →'}
               </button>
             )}
           </div>
