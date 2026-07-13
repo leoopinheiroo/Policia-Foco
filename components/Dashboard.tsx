@@ -198,13 +198,13 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="lg:col-span-3 bg-white p-10 rounded-[4rem] shadow-xl border border-slate-200">
-          <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
+        <div className="lg:col-span-3 bg-white p-5 sm:p-10 rounded-3xl sm:rounded-[4rem] shadow-xl border border-slate-200">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 sm:mb-10 gap-4">
             <div>
-              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Mapa de Maestria Policial</h3>
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Mapa de Maestria Policial</h3>
               <p className="text-slate-400 text-sm font-medium">Nível de conhecimento teórico vs Prática em questões</p>
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-2 sm:gap-4 justify-start md:justify-end">
                <LegendItem color="bg-yellow-500" label="Elite (80%+)" />
                <LegendItem color="bg-slate-900" label="Combatente (60%+)" />
                <LegendItem color="bg-slate-200" label="Recruta (&lt;60%)" />
@@ -239,18 +239,18 @@ export const Dashboard: React.FC = () => {
 };
 
 const MetricCard = ({ label, value, trend, trendPositive, icon }: any) => (
-  <div className="bg-white p-8 rounded-[2.5rem] shadow-lg border border-slate-200 flex flex-col justify-between hover:shadow-2xl transition-all group">
-    <div className="flex justify-between items-start mb-4">
-      <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+  <div className="bg-white p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] shadow-lg border border-slate-200 flex flex-col justify-between hover:shadow-2xl transition-all group min-w-0">
+    <div className="flex justify-between items-start mb-4 gap-2">
+      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-xl sm:text-2xl group-hover:scale-110 transition-transform shrink-0">
         {icon}
       </div>
-      <span className={`text-[10px] font-black px-3 py-1 rounded-full ${trendPositive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+      <span className={`text-[10px] font-black px-2 sm:px-3 py-1 rounded-full shrink-0 ${trendPositive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
         {trend}
       </span>
     </div>
-    <div>
-      <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-      <p className="text-4xl font-black text-slate-900 tracking-tighter">{value}</p>
+    <div className="min-w-0">
+      <p className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest mb-1 truncate">{label}</p>
+      <p className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter break-words">{value}</p>
     </div>
   </div>
 );

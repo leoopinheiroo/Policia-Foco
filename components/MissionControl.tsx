@@ -96,14 +96,14 @@ export const MissionControl: React.FC<MissionControlProps> = ({ userHistory, onP
   return (
     <div className="max-w-7xl mx-auto space-y-12 animate-fade-in pb-20">
       {/* Mission Header */}
-      <header className="bg-slate-950 rounded-[4rem] p-12 md:p-16 text-white relative overflow-hidden border border-white/5 shadow-2xl">
+      <header className="bg-slate-950 rounded-3xl sm:rounded-[4rem] p-6 sm:p-12 md:p-16 text-white relative overflow-hidden border border-white/5 shadow-2xl">
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-3 bg-yellow-500/10 text-yellow-500 px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-8 border border-yellow-500/20">
               <Shield className="w-4 h-4" />
               CENTRO DE COMANDO DE MISSÃO
             </div>
-            <h2 className="text-5xl md:text-6xl font-black mb-6 tracking-tighter leading-tight">
+            <h2 className="text-3xl sm:text-5xl md:text-6xl font-black mb-4 sm:mb-6 tracking-tighter leading-tight">
               {activeMission.name}
             </h2>
             <p className="text-slate-400 text-lg font-medium leading-relaxed mb-8">

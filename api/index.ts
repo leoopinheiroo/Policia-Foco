@@ -541,19 +541,28 @@ const correctEssayWithAi = async (essay: string, theme: string): Promise<EssayFe
 
 const generateFlashcardsBatch = async (
   subject: string,
-  count: number
+  count: number,
+  options?: { fresh?: boolean }
 ): Promise<Flashcard[]> => {
-  const cacheKey = `FC:${subject}:${count}`;
-  const cached = getCachedData(cacheKey);
-  if (cached) return cached;
-  if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
+  const safeCount = Math.max(1, Math.min(Number(count) || 10, 12));
+  const fresh = options?.fresh === true;
+  const cacheKey = `FC:${subject}:${safeCount}`;
+
+  if (!fresh) {
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
+    if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
+  }
 
   const request = withRetry(async () => {
+    const entropy = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const response = await (await getAi()).models.generateContent({
       model: getGeminiModel(),
       contents: `VOCÊ É UM ESPECIALISTA EM MEMORIZAÇÃO E ACTIVE RECALL.
-        MISSÃO: Gerar ${count} flashcards de alto rendimento para a matéria: ${subject}.
-        REGRAS: front = pergunta/gatilho; back = explicação rica com bases legais/mnemônicos.`,
+        MISSÃO: Gerar EXATAMENTE ${safeCount} flashcards de alto rendimento para a matéria: ${subject}.
+        VARIAÇÃO OBRIGATÓRIA (não repita enunciados anteriores): seed=${entropy}.
+        REGRAS: front = pergunta/gatilho; back = explicação rica com bases legais/mnemônicos.
+        Cada card deve ser inédito e cobrir um ponto diferente do edital.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -572,24 +581,86 @@ const generateFlashcardsBatch = async (
     });
 
     const items = JSON.parse(cleanJson(response.text || '[]'));
+    if (!Array.isArray(items)) return [];
     const results = items.map((f: any) => ({
       ...f,
-      id: `fc-${Date.now()}-${Math.random()}`,
+      id: `fc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       materia: subject,
       nextReview: Date.now(),
       difficultyFactor: 2.5
     }));
 
-    setCachedData(cacheKey, results);
+    if (!fresh && results.length) setCachedData(cacheKey, results);
     return results;
   });
 
-  pendingRequests.set(cacheKey, request);
-  try {
-    return await request;
-  } finally {
-    pendingRequests.delete(cacheKey);
+  if (!fresh) {
+    pendingRequests.set(cacheKey, request);
+    try {
+      return await request;
+    } finally {
+      pendingRequests.delete(cacheKey);
+    }
   }
+
+  return request;
+};
+
+/** Persiste flashcards no banco compartilhado por matéria (ignora duplicatas). */
+const saveFlashcardsToBank = async (
+  supabase: SupabaseClient,
+  cards: { materia: string; assunto?: string; front: string; back: string }[]
+): Promise<number> => {
+  if (!cards.length) return 0;
+  const rows = cards
+    .filter(c => c.materia && c.front && c.back)
+    .map(c => ({
+      materia: c.materia.trim(),
+      assunto: (c.assunto || 'Geral').trim(),
+      front: c.front.trim(),
+      back: c.back.trim(),
+    }));
+  if (!rows.length) return 0;
+
+  const { data, error } = await supabase
+    .from('flashcards_bank')
+    .upsert(rows, { onConflict: 'materia,front', ignoreDuplicates: true })
+    .select('id');
+
+  if (error) {
+    console.error('saveFlashcardsToBank error:', error);
+    return 0;
+  }
+  return data?.length || 0;
+};
+
+const mapBankRowToFlashcard = (row: any): Flashcard => ({
+  id: row.id || `fc-${Date.now()}`,
+  front: row.front,
+  back: row.back,
+  materia: row.materia,
+  assunto: row.assunto || 'Geral',
+  nextReview: Date.now(),
+  difficultyFactor: 2.5,
+});
+
+const loadFlashcardsFromBank = async (
+  supabase: SupabaseClient,
+  subject: string,
+  limit = 80
+): Promise<Flashcard[]> => {
+  const { data, error } = await supabase
+    .from('flashcards_bank')
+    .select('id, materia, assunto, front, back')
+    .eq('materia', subject)
+    .order('created_at', { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.error('loadFlashcardsFromBank error:', error);
+    return [];
+  }
+  return (data || []).map(mapBankRowToFlashcard);
 };
 
 const mentoriaChat = async (
@@ -1023,7 +1094,14 @@ app.post('/api/user/flashcards/save', checkSupabase, requireAuth, async (req, re
     const { email } = (req as AuthedRequest).user;
     await ensureUserRow((req as AuthedRequest).supabase, email);
     const { materia, assunto, front, back, status } = req.body;
-    const { error } = await (req as AuthedRequest).supabase.from('user_flashcards').insert([{
+    const supabase = (req as AuthedRequest).supabase;
+
+    // Salva no banco compartilhado da matéria (reuso entre alunos)
+    if (materia && front && back) {
+      await saveFlashcardsToBank(supabase, [{ materia, assunto, front, back }]);
+    }
+
+    const { error } = await supabase.from('user_flashcards').insert([{
       user_email: email,
       materia,
       assunto,
@@ -1041,15 +1119,91 @@ app.post('/api/user/flashcards/save', checkSupabase, requireAuth, async (req, re
 
 app.get('/api/user/flashcards/list', checkSupabase, requireAuth, async (req, res) => {
   try {
+    const supabase = (req as AuthedRequest).supabase;
+    const materia = typeof req.query.materia === 'string' ? req.query.materia : null;
+
+    // Preferência: banco compartilhado (rápido e reutilizável)
+    let query = supabase
+      .from('flashcards_bank')
+      .select('id, materia, assunto, front, back, created_at')
+      .order('created_at', { ascending: true })
+      .limit(500);
+
+    if (materia && materia !== 'TODAS') {
+      query = query.eq('materia', materia);
+    }
+
+    const { data: bank, error: bankError } = await query;
+    if (!bankError && bank && bank.length > 0) {
+      return res.json({
+        flashcards: bank.map(mapBankRowToFlashcard),
+        source: 'bank',
+        total: bank.length,
+      });
+    }
+
+    // Fallback: cards pessoais do usuário
     const { email } = (req as AuthedRequest).user;
-    const { data, error } = await (req as AuthedRequest).supabase
+    const { data, error } = await supabase
       .from('user_flashcards')
       .select('*')
       .eq('user_email', email);
     if (error) throw error;
-    res.json({ flashcards: data });
+    res.json({
+      flashcards: (data || []).map((row: any) => mapBankRowToFlashcard(row)),
+      source: 'user',
+      total: data?.length || 0,
+    });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar flashcards.' });
+  }
+});
+
+/**
+ * Garante flashcards da matéria: lê do banco e, se faltar, gera 1 lote via IA e grava.
+ * Assim a 1ª carga pode demorar; as próximas vêm do banco.
+ */
+app.post('/api/flashcards/for-subject', checkSupabase, requireAuth, async (req, res) => {
+  try {
+    const supabase = (req as AuthedRequest).supabase;
+    const subject = String(req.body?.subject || '').trim();
+    if (!subject) return res.status(400).json({ error: 'subject obrigatório.' });
+
+    const target = Math.min(Math.max(Number(req.body?.target) || 50, 10), 80);
+    const generate = req.body?.generate !== false; // default: tenta preencher
+    const batchSize = Math.min(Math.max(Number(req.body?.batchSize) || 8, 4), 12);
+
+    let flashcards = await loadFlashcardsFromBank(supabase, subject, target + 20);
+    let generated = 0;
+
+    if (generate && flashcards.length < target) {
+      const need = Math.min(batchSize, target - flashcards.length);
+      try {
+        const fresh = await generateFlashcardsBatch(subject, need, { fresh: true });
+        if (fresh.length) {
+          await saveFlashcardsToBank(supabase, fresh);
+          generated = fresh.length;
+          flashcards = await loadFlashcardsFromBank(supabase, subject, target + 20);
+        }
+      } catch (genErr: any) {
+        console.error('for-subject generate error:', genErr);
+        // Se já temos cards no banco, devolve o que tem em vez de falhar
+        if (!flashcards.length) throw genErr;
+      }
+    }
+
+    const bankCount = flashcards.length;
+    res.json({
+      flashcards: flashcards.slice(0, Math.max(target, bankCount)),
+      bankCount,
+      target,
+      generated,
+      needsMore: bankCount < target,
+      source: 'bank',
+    });
+  } catch (error: any) {
+    console.error('flashcards for-subject error:', error);
+    res.status(500).json({ error: error.message || 'Erro ao carregar flashcards.' });
   }
 });
 
@@ -1247,8 +1401,11 @@ app.post('/api/ai/flashcards', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { subject, count = 10 } = req.body;
     if (!subject) return res.status(400).json({ error: 'subject obrigatório.' });
-    const flashcards = await generateFlashcardsBatch(subject, count);
-    res.json({ flashcards });
+    const safeCount = Math.min(Math.max(1, Number(count) || 10), 12);
+    const flashcards = await generateFlashcardsBatch(subject, safeCount, { fresh: true });
+    // Sempre grava no banco compartilhado para próximas sessões
+    await saveFlashcardsToBank((req as AuthedRequest).supabase, flashcards);
+    res.json({ flashcards, savedToBank: true });
   } catch (error: any) {
     console.error('AI flashcards error:', error);
     res.status(500).json({ error: error.message || 'Erro ao gerar flashcards.' });

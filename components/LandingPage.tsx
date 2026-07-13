@@ -39,9 +39,9 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-green-500 selection:text-slate-900 scroll-smooth">
+    <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-green-500 selection:text-slate-900 scroll-smooth overflow-x-hidden pb-24 md:pb-0">
       {/* URGENCY TOP BAR */}
-      <div className="bg-orange-600 text-white py-2 px-6 text-center text-[10px] font-black uppercase tracking-[0.2em] relative z-[60]">
+      <div className="bg-orange-600 text-white py-2 px-3 sm:px-6 text-center text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-[0.2em] relative z-[60] leading-relaxed">
          🔥 Oferta de Lançamento: Desconto de 50% encerra em <Countdown />
       </div>
 
@@ -52,13 +52,13 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
             initial={{ y: 100 }}
             animate={{ y: 0 }}
             exit={{ y: 100 }}
-            className="fixed bottom-0 left-0 right-0 z-[100] p-4 md:hidden"
+            className="fixed bottom-0 left-0 right-0 z-[100] p-3 sm:p-4 md:hidden pb-safe"
           >
             <button 
               onClick={() => onStart('ANNUAL')}
-              className="w-full bg-green-600 text-white py-5 rounded-2xl font-black text-lg shadow-[0_-10px_40px_-5px_rgba(22,163,74,0.3)] flex items-center justify-center gap-3 active:scale-95"
+              className="w-full bg-green-600 text-white py-4 sm:py-5 rounded-2xl font-black text-base sm:text-lg shadow-[0_-10px_40px_-5px_rgba(22,163,74,0.3)] flex items-center justify-center gap-2 sm:gap-3 active:scale-95"
             >
-              🚀 QUERO SER APROVADO AGORA
+              🚀 QUERO SER APROVADO
             </button>
           </motion.div>
         )}
@@ -66,31 +66,31 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
 
       {/* 1. HERO SECTION */}
       <nav className="fixed top-0 z-[70] w-full backdrop-blur-md bg-slate-950/80 border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center">
-              <ShieldCheck className="text-white w-6 h-6" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-orange-600 rounded-lg flex items-center justify-center shrink-0">
+              <ShieldCheck className="text-white w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <span className="text-xl font-black italic tracking-tighter uppercase">
+            <span className="text-base sm:text-xl font-black italic tracking-tighter uppercase truncate">
               Aprova<span className="text-orange-500">Elite IA</span>
             </span>
           </div>
-          <div className="flex items-center gap-4 relative z-[100]">
+          <div className="flex items-center gap-2 sm:gap-4 relative z-[100] shrink-0">
             <button 
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 onLogin();
               }}
-              className="relative z-[100] px-8 py-3 bg-orange-600 hover:bg-orange-500 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-white transition-all shadow-[0_10px_30px_-5px_rgba(234,88,12,0.4)] cursor-pointer active:scale-95 pointer-events-auto"
+              className="relative z-[100] px-3 sm:px-8 py-2.5 sm:py-3 bg-orange-600 hover:bg-orange-500 rounded-xl text-[9px] sm:text-[11px] font-black uppercase tracking-wider sm:tracking-[0.2em] text-white transition-all shadow-[0_10px_30px_-5px_rgba(234,88,12,0.4)] cursor-pointer active:scale-95 pointer-events-auto whitespace-nowrap"
             >
-              Acessar Plataforma
+              Acessar
             </button>
           </div>
         </div>
       </nav>
 
-      <header className="relative pt-32 pb-20 px-6 overflow-hidden z-10">
+      <header className="relative pt-36 sm:pt-32 pb-16 sm:pb-20 px-4 sm:px-6 overflow-hidden z-10">
         {/* Background Gradients */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full -z-10">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-600/10 blur-[120px] rounded-full"></div>
@@ -101,9 +101,9 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full text-[10px] font-black tracking-widest text-orange-500 mb-8 uppercase"
+            className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-3 sm:px-4 py-2 rounded-full text-[9px] sm:text-[10px] font-black tracking-widest text-orange-500 mb-6 sm:mb-8 uppercase"
           >
-            <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+            <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse shrink-0" />
             Vagas Limitadas para o Ciclo de Elite
           </motion.div>
 
@@ -111,7 +111,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-5xl md:text-7xl font-black tracking-tight leading-[1.1] mb-8"
+            className="text-3xl sm:text-5xl md:text-7xl font-black tracking-tight leading-[1.15] mb-6 sm:mb-8"
           >
             Passe em concursos policiais mais rápido com um método que mostra <span className="text-orange-500">exatamente o que estudar</span>
           </motion.h1>
@@ -120,7 +120,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-slate-400 text-lg md:text-2xl mb-12 max-w-3xl mx-auto leading-relaxed"
+            className="text-slate-400 text-base sm:text-lg md:text-2xl mb-8 sm:mb-12 max-w-3xl mx-auto leading-relaxed"
           >
             Um aplicativo com inteligência artificial que corrige suas redações em segundos, identifica seus erros e te guia até a aprovação.
           </motion.p>
@@ -129,23 +129,23 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="flex flex-col items-center gap-8"
+            className="flex flex-col items-center gap-6 sm:gap-8"
           >
-            <div className="flex flex-wrap justify-center gap-x-8 gap-y-4">
+            <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 sm:gap-x-8 sm:gap-y-4">
               <BulletItem text="Questões no estilo da banca" />
               <BulletItem text="Correção automática de redação com IA" />
               <BulletItem text="Plano de estudo personalizado" />
             </div>
 
-            <div className="flex items-center gap-4 bg-green-500/10 border border-green-500/20 px-6 py-3 rounded-2xl">
-               <div className="flex -space-x-3">
+            <div className="flex items-center gap-3 sm:gap-4 bg-green-500/10 border border-green-500/20 px-4 sm:px-6 py-3 rounded-2xl max-w-full">
+               <div className="flex -space-x-3 shrink-0">
                   {[1,2,3,4].map(i => (
-                    <div key={i} className="w-8 h-8 rounded-full border-2 border-slate-950 bg-slate-800 flex items-center justify-center text-xs overflow-hidden">
+                    <div key={i} className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-slate-950 bg-slate-800 flex items-center justify-center text-xs overflow-hidden">
                        <img src={`https://picsum.photos/seed/user${i}/40/40`} alt="user" referrerPolicy="no-referrer" />
                     </div>
                   ))}
                </div>
-               <div className="text-left">
+               <div className="text-left min-w-0">
                   <p className="text-[10px] font-black text-green-500 uppercase tracking-widest leading-none mb-1">Elite em Ação</p>
                   <p className="text-xs text-slate-400 font-bold tracking-tight">+1.240 alunos estudando agora</p>
                </div>
@@ -157,25 +157,25 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
                 e.stopPropagation();
                 onStart('ANNUAL');
               }}
-              className="group relative z-[100] w-full max-w-md bg-green-600 hover:bg-green-500 text-white px-8 py-6 rounded-2xl font-black text-2xl shadow-[0_20px_50px_-15px_rgba(22,163,74,0.5)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-4 cursor-pointer pointer-events-auto"
+              className="group relative z-[100] w-full max-w-md bg-green-600 hover:bg-green-500 text-white px-6 sm:px-8 py-4 sm:py-6 rounded-2xl font-black text-lg sm:text-2xl shadow-[0_20px_50px_-15px_rgba(22,163,74,0.5)] transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3 sm:gap-4 cursor-pointer pointer-events-auto"
             >
               👉 COMEÇAR AGORA
-              <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform" />
+              <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 group-hover:translate-x-2 transition-transform shrink-0" />
             </button>
           </motion.div>
         </div>
       </header>
 
       {/* 2. PAIN SECTION / BREAK BELIEF */}
-      <section className="py-24 px-6 bg-slate-900/50">
+      <section className="py-16 sm:py-24 px-4 sm:px-6 bg-slate-900/50">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="bg-slate-950 p-12 md:p-20 rounded-[3rem] border border-white/5 relative overflow-hidden">
+          <div className="bg-slate-950 p-6 sm:p-12 md:p-20 rounded-3xl sm:rounded-[3rem] border border-white/5 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-2 h-full bg-orange-600"></div>
-            <h2 className="text-3xl md:text-5xl font-black mb-8 leading-tight">
+            <h2 className="text-2xl sm:text-3xl md:text-5xl font-black mb-6 sm:mb-8 leading-tight">
               Se você estuda todos os dias, mas sente que não evolui… o problema não é falta de esforço.
             </h2>
-            <p className="text-orange-500 text-2xl md:text-4xl font-black mb-10 italic">É falta de direção.</p>
-            <p className="text-slate-400 text-xl md:text-2xl leading-relaxed">
+            <p className="text-orange-500 text-xl sm:text-2xl md:text-4xl font-black mb-6 sm:mb-10 italic">É falta de direção.</p>
+            <p className="text-slate-400 text-base sm:text-xl md:text-2xl leading-relaxed">
               Enquanto você repete os mesmos erros, outras pessoas estão sendo aprovadas com estratégia.
             </p>
           </div>
@@ -186,7 +186,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
       <section className="py-32 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-6xl font-black mb-6">Tudo que você precisa para sair do zero até a aprovação</h2>
+            <h2 className="text-2xl sm:text-4xl md:text-6xl font-black mb-6">Tudo que você precisa para sair do zero até a aprovação</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -275,11 +275,11 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
       {/* 3.2 EXTRA TOOLS SECTION */}
       <section className="py-24 px-6 bg-slate-950">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-gradient-to-br from-slate-900 to-slate-950 rounded-[4rem] p-12 md:p-20 border border-white/5 relative overflow-hidden">
+          <div className="bg-gradient-to-br from-slate-900 to-slate-950 rounded-3xl sm:rounded-[4rem] p-6 sm:p-12 md:p-20 border border-white/5 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-96 h-96 bg-orange-600/5 blur-[100px] -z-10" />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 sm:gap-20 items-center">
               <div>
-                <h2 className="text-4xl md:text-6xl font-black mb-8 tracking-tighter leading-tight">
+                <h2 className="text-2xl sm:text-4xl md:text-6xl font-black mb-6 sm:mb-8 tracking-tighter leading-tight">
                   Arsenal completo para quem não aceita <span className="text-orange-500">perder</span>
                 </h2>
                 <div className="space-y-12">
@@ -339,7 +339,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
                <Database className="w-4 h-4 text-orange-500" />
                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-orange-500">Base de Dados Atualizada 2026</span>
             </motion.div>
-            <h2 className="text-4xl md:text-7xl font-black mb-8 tracking-tighter leading-tight uppercase italic">
+            <h2 className="text-2xl sm:text-4xl md:text-7xl font-black mb-6 sm:mb-8 tracking-tighter leading-tight uppercase italic">
               Domine o Edital de <span className="text-orange-500">Ponta a Ponta</span>
             </h2>
             <p className="text-slate-400 text-xl max-w-3xl mx-auto font-medium italic leading-relaxed">
@@ -416,8 +416,8 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
 
       {/* 4. WHO IT'S FOR */}
       <section className="py-32 px-6 bg-slate-900/30">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12">
-          <div className="bg-slate-950 p-12 rounded-[2.5rem] border border-green-500/10 shadow-2xl">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12">
+          <div className="bg-slate-950 p-6 sm:p-12 rounded-3xl sm:rounded-[2.5rem] border border-green-500/10 shadow-2xl">
             <h3 className="text-3xl font-black mb-10 flex items-center gap-4 text-green-500">
               <CheckCircle2 className="w-8 h-8" /> Para quem é:
             </h3>
@@ -429,7 +429,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
             </ul>
           </div>
 
-          <div className="bg-slate-950 p-12 rounded-[2.5rem] border border-red-500/10 opacity-70">
+          <div className="bg-slate-950 p-6 sm:p-12 rounded-3xl sm:rounded-[2.5rem] border border-red-500/10 opacity-70">
             <h3 className="text-3xl font-black mb-10 flex items-center gap-4 text-red-500">
               <XCircle className="w-8 h-8" /> Para quem NÃO é:
             </h3>
@@ -450,7 +450,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
             <div className="flex justify-center gap-1 mb-4">
               {[1,2,3,4,5].map(i => <Star key={i} className="w-6 h-6 fill-orange-500 text-orange-500" />)}
             </div>
-            <h2 className="text-4xl md:text-6xl font-black">Quem usou, aprovou</h2>
+            <h2 className="text-2xl sm:text-4xl md:text-6xl font-black">Quem usou, aprovou</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -491,7 +491,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
       {/* 6. COMO FUNCIONA */}
       <section className="py-32 px-6 bg-orange-600/5">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-4xl md:text-6xl font-black text-center mb-20">Como funciona o método</h2>
+          <h2 className="text-2xl sm:text-4xl md:text-6xl font-black text-center mb-10 sm:mb-20">Como funciona o método</h2>
           
           <div className="space-y-6">
             <Step number="1" text="Você resolve questões focadas no seu edital escolhido." />
@@ -507,7 +507,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
       <section className="py-32 px-6 bg-slate-950">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-6xl font-black mb-6">Tudo o que você precisa em um só lugar</h2>
+            <h2 className="text-2xl sm:text-4xl md:text-6xl font-black mb-6">Tudo o que você precisa em um só lugar</h2>
             <p className="text-slate-400 text-xl max-w-3xl mx-auto">Mais de 40 matérias integradas com Inteligência Artificial para todos os concursos policiais do Brasil.</p>
           </div>
 
@@ -540,19 +540,19 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
       <section id="pricing" className="py-32 px-6 relative z-10">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-6xl font-black mb-6">Escolha seu plano de treinamento</h2>
+            <h2 className="text-2xl sm:text-4xl md:text-6xl font-black mb-6">Escolha seu plano de treinamento</h2>
             <p className="text-slate-400 text-xl">Acesso total a todas as ferramentas de IA e questões.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch max-w-5xl mx-auto">
             {/* PLANO MENSAL */}
-            <div className="bg-slate-900 border border-white/10 rounded-[4rem] p-12 flex flex-col justify-between hover:border-white/20 transition-all">
+            <div className="bg-slate-900 border border-white/10 rounded-3xl sm:rounded-[4rem] p-6 sm:p-12 flex flex-col justify-between hover:border-white/20 transition-all">
               <div>
                 <h3 className="text-2xl font-black mb-2 uppercase tracking-tighter">Recruta (Mensal)</h3>
                 <p className="text-slate-500 text-sm mb-8 font-medium">Ideal para testar o método</p>
                 
                 <div className="flex items-baseline gap-2 mb-10">
-                   <span className="text-5xl font-black text-white">29,90</span>
+                   <span className="text-4xl sm:text-5xl font-black text-white">29,90</span>
                    <span className="text-slate-500 font-bold">/mês</span>
                 </div>
 
@@ -577,7 +577,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
             </div>
 
             {/* PLANO ANUAL */}
-            <div className="bg-slate-900 border-2 border-orange-600 rounded-[4rem] p-12 flex flex-col justify-between relative shadow-[0_0_80px_-20px_rgba(234,88,12,0.3)] hover:scale-[1.02] transition-all">
+            <div className="bg-slate-900 border-2 border-orange-600 rounded-3xl sm:rounded-[4rem] p-6 sm:p-12 flex flex-col justify-between relative shadow-[0_0_80px_-20px_rgba(234,88,12,0.3)] md:hover:scale-[1.02] transition-all">
               <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-orange-600 text-white px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl">
                 MAIS ESCOLHIDO & ECONÔMICO
               </div>
@@ -588,7 +588,7 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
                 
                 <div className="flex items-baseline gap-2 mb-2">
                    <span className="text-xl font-bold text-slate-500 mt-4">12x</span>
-                   <span className="text-7xl font-black tracking-tighter text-white">24,75</span>
+                   <span className="text-5xl sm:text-7xl font-black tracking-tighter text-white">24,75</span>
                 </div>
                 <p className="text-slate-500 text-xs font-bold mb-10 uppercase tracking-widest">Ou R$ 297,00 à vista (Economize 50%)</p>
 
@@ -651,13 +651,13 @@ export const LandingPage: React.FC<LandingProps> = ({ onStart, onLogin }) => {
       <section className="py-32 px-6 bg-slate-950 relative overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-orange-600/5 blur-[150px] rounded-full -z-10"></div>
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-4xl md:text-6xl font-black mb-12 leading-tight">
+          <h2 className="text-2xl sm:text-4xl md:text-6xl font-black mb-8 sm:mb-12 leading-tight">
             Você pode continuar estudando no escuro…<br/>
             ou começar agora com estratégia.
           </h2>
           <button 
             onClick={() => onStart('ANNUAL')}
-            className="group relative inline-flex items-center gap-4 bg-orange-600 hover:bg-orange-500 text-white px-16 py-8 rounded-2xl font-black text-3xl shadow-[0_20px_60px_-15px_rgba(234,88,12,0.4)] transition-all hover:scale-105 active:scale-95"
+            className="group relative inline-flex items-center justify-center gap-3 sm:gap-4 bg-orange-600 hover:bg-orange-500 text-white w-full sm:w-auto px-6 sm:px-16 py-5 sm:py-8 rounded-2xl font-black text-xl sm:text-3xl shadow-[0_20px_60px_-15px_rgba(234,88,12,0.4)] transition-all hover:scale-105 active:scale-95"
           >
             QUERO SER APROVADO
             <ArrowRight className="w-8 h-8 group-hover:translate-x-3 transition-transform" />

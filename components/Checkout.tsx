@@ -69,7 +69,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-center p-6 text-white">
          <div className="w-24 h-24 border-8 border-white/5 border-t-yellow-500 rounded-full animate-spin mb-10"></div>
-         <h2 className="text-4xl font-black tracking-tighter mb-4">VERIFICANDO PAGAMENTO</h2>
+         <h2 className="text-2xl sm:text-4xl font-black tracking-tighter mb-4">VERIFICANDO PAGAMENTO</h2>
          <p className="text-slate-400 max-w-md font-medium">Estamos processando sua transação com segurança. Não feche esta janela.</p>
          <div className="mt-10 flex gap-4">
             <div className="px-4 py-2 bg-white/5 rounded-xl text-[10px] font-black uppercase text-slate-500 border border-white/5">VISA/MC SECURE</div>
@@ -85,7 +85,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
           
           {/* Order Summary */}
           <div className="flex-1 lg:order-2">
-             <div className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-200 sticky top-12">
+             <div className="bg-white p-5 sm:p-8 rounded-3xl sm:rounded-[3rem] shadow-xl border border-slate-200 lg:sticky lg:top-12">
                 <div className="flex justify-between items-start mb-8">
                    <h2 className="text-2xl font-black tracking-tighter">Resumo da Ordem</h2>
                    <button 
@@ -136,7 +136,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
              >
                ← Voltar ao Início
              </button>
-             <h2 className="text-4xl font-black tracking-tighter mb-10">Finalizar Assinatura</h2>
+             <h2 className="text-2xl sm:text-4xl font-black tracking-tighter mb-6 sm:mb-10">Finalizar Assinatura</h2>
              
              {/* Plan Selection UI */}
              <div className="mb-12">

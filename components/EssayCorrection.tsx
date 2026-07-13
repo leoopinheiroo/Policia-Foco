@@ -100,7 +100,7 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
           placeholder="Comece a escrever sua redação aqui. Foque na estrutura dissertativa-argumentativa (Introdução, Desenvolvimento, Conclusão)..."
           className="flex-1 w-full p-6 text-slate-700 leading-relaxed outline-none resize-none focus:bg-slate-50 transition font-serif text-lg"
         />
-        <div className="p-5 border-t border-slate-200 flex justify-between items-center bg-slate-50">
+        <div className="p-4 sm:p-5 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-slate-50">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{essay.length} caracteres</span>
           <button
             onClick={handleCorrection}
@@ -174,7 +174,7 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
              </div>
 
              {/* Content */}
-             <div className="p-8 -mt-6">
+             <div className="p-4 sm:p-8 -mt-6">
                 
                 {/* Recommendation Card */}
                 <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200 mb-8 relative z-20">

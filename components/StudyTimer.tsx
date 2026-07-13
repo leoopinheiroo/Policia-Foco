@@ -96,7 +96,7 @@ export const StudyTimer: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-8 right-8 z-50">
+    <div className="fixed bottom-20 right-4 sm:bottom-8 sm:right-8 z-50 pb-safe">
       <AnimatePresence>
         {isOpen && (
           <motion.div

@@ -284,22 +284,22 @@ const App: React.FC = () => {
     switch (currentView) {
       case 'HOME':
         return (
-          <div className="space-y-16 animate-fade-in">
-            <header className="bg-gradient-to-br from-slate-950 to-slate-900 rounded-[4rem] p-12 md:p-20 text-white shadow-2xl relative overflow-hidden border border-slate-800">
+          <div className="space-y-10 sm:space-y-16 animate-fade-in">
+            <header className="bg-gradient-to-br from-slate-950 to-slate-900 rounded-3xl sm:rounded-[4rem] p-6 sm:p-12 md:p-20 text-white shadow-2xl relative overflow-hidden border border-slate-800">
                <div className="relative z-10 max-w-4xl">
-                  <div className="inline-flex items-center gap-3 bg-yellow-500/10 text-yellow-500 px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-0.3em mb-10 border border-yellow-500/20">
-                     <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
-                     TREINAMENTO OPERACIONAL DE ELITE
+                  <div className="inline-flex items-center gap-2 sm:gap-3 bg-yellow-500/10 text-yellow-500 px-4 sm:px-6 py-2 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-0.3em mb-6 sm:mb-10 border border-yellow-500/20">
+                     <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse shrink-0" />
+                     <span className="truncate">TREINAMENTO OPERACIONAL DE ELITE</span>
                   </div>
-                  <h1 className="text-6xl md:text-7xl font-black mb-10 tracking-tighter leading-tight">
+                  <h1 className="text-3xl sm:text-5xl md:text-7xl font-black mb-6 sm:mb-10 tracking-tighter leading-tight">
                     DOMINE O <span className="text-yellow-500">EDITAL</span>.
                   </h1>
-                  <p className="text-slate-400 text-xl leading-relaxed mb-14 max-w-2xl font-light">
+                  <p className="text-slate-400 text-base sm:text-xl leading-relaxed mb-8 sm:mb-14 max-w-2xl font-light">
                     Bem-vindo, Operador. Todas as 24 disciplinas obrigatórias estão prontas para o seu treinamento infinito.
                   </p>
                   <button 
                       onClick={() => setCurrentView('SUBJECTS')}
-                      className="bg-yellow-500 text-slate-950 px-14 py-7 rounded-[2rem] font-black text-2xl hover:bg-yellow-400 shadow-2xl transition-all"
+                      className="w-full sm:w-auto bg-yellow-500 text-slate-950 px-8 sm:px-14 py-4 sm:py-7 rounded-2xl sm:rounded-[2rem] font-black text-lg sm:text-2xl hover:bg-yellow-400 shadow-2xl transition-all"
                   >
                       ACESSAR DISCIPLINAS →
                   </button>
@@ -308,22 +308,22 @@ const App: React.FC = () => {
             </header>
 
             <section>
-              <div className="flex items-end justify-between mb-12">
+              <div className="flex items-end justify-between mb-6 sm:mb-12">
                 <div>
-                    <h2 className="text-4xl font-black text-slate-900 tracking-tighter mb-2">Seu Arsenal de Estudo</h2>
-                    <p className="text-slate-400 font-medium">Selecione uma matéria para iniciar a geração infinita de questões.</p>
+                    <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter mb-2">Seu Arsenal de Estudo</h2>
+                    <p className="text-slate-400 font-medium text-sm sm:text-base">Selecione uma matéria para iniciar a geração infinita de questões.</p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {SUBJECTS.filter(s => s.category === 'BASICAS' || s.category === 'JURIDICAS').slice(0, 12).map(sub => (
                   <button 
                     key={sub.id}
                     onClick={() => handleSubjectClick(sub.id)}
-                    className="bg-white p-8 rounded-[2.5rem] shadow-lg border border-slate-100 hover:border-yellow-500 transition-all text-left flex items-center gap-6 group"
+                    className="bg-white p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] shadow-lg border border-slate-100 hover:border-yellow-500 transition-all text-left flex items-center gap-4 sm:gap-6 group min-w-0"
                   >
-                    <span className="text-5xl group-hover:scale-110 transition-transform">{sub.icon}</span>
-                    <div>
-                      <h3 className="font-black text-slate-900 text-lg group-hover:text-yellow-600 mb-1">{sub.name}</h3>
+                    <span className="text-3xl sm:text-5xl group-hover:scale-110 transition-transform shrink-0">{sub.icon}</span>
+                    <div className="min-w-0">
+                      <h3 className="font-black text-slate-900 text-base sm:text-lg group-hover:text-yellow-600 mb-1 truncate">{sub.name}</h3>
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{sub.topics.length} Tópicos</p>
                     </div>
                   </button>
@@ -344,9 +344,9 @@ const App: React.FC = () => {
       case 'SUBJECTS':
         return (
           <div className="animate-fade-in space-y-12">
-            <div className="border-b pb-8">
-               <h2 className="text-5xl font-black text-slate-900 tracking-tighter">Catálogo Completo</h2>
-               <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] mt-2">Todas as disciplinas obrigatórias para concursos policiais</p>
+            <div className="border-b pb-6 sm:pb-8">
+               <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tighter">Catálogo Completo</h2>
+               <p className="text-slate-400 font-bold uppercase text-[9px] sm:text-[10px] tracking-wider sm:tracking-[0.3em] mt-2">Todas as disciplinas obrigatórias para concursos policiais</p>
             </div>
 
             <QuestionFilter onFilter={handleFilterApply} />
@@ -367,30 +367,31 @@ const App: React.FC = () => {
             <button onClick={() => setCurrentView('SUBJECTS')} className="text-slate-400 hover:text-slate-900 mb-10 text-xs font-black uppercase tracking-widest transition flex items-center gap-2">
               ← Voltar ao Catálogo
             </button>
-            <div className="flex items-center gap-10 mb-16 bg-white p-12 rounded-[3.5rem] border border-slate-200 shadow-2xl">
-              <div className="w-28 h-28 bg-slate-950 rounded-[3rem] flex items-center justify-center text-7xl shadow-2xl">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-10 mb-8 sm:mb-16 bg-white p-5 sm:p-12 rounded-3xl sm:rounded-[3.5rem] border border-slate-200 shadow-2xl">
+              <div className="w-16 h-16 sm:w-28 sm:h-28 bg-slate-950 rounded-2xl sm:rounded-[3rem] flex items-center justify-center text-4xl sm:text-7xl shadow-2xl shrink-0">
                 {activeSubject.icon}
               </div>
-              <div>
-                 <p className="text-[10px] font-black text-yellow-600 uppercase tracking-[0.4em] mb-4">Módulos de Aprendizado</p>
-                 <h2 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tighter leading-none">{activeSubject.name}</h2>
+              <div className="min-w-0">
+                 <p className="text-[10px] font-black text-yellow-600 uppercase tracking-[0.4em] mb-2 sm:mb-4">Módulos de Aprendizado</p>
+                 <h2 className="text-2xl sm:text-5xl md:text-6xl font-black text-slate-900 tracking-tighter leading-tight sm:leading-none break-words">{activeSubject.name}</h2>
               </div>
             </div>
             
-            <div className="bg-white rounded-[3.5rem] shadow-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+            <div className="bg-white rounded-3xl sm:rounded-[3.5rem] shadow-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
               {activeSubject.topics.map((topic, idx) => (
                 <button 
                   key={idx}
                   onClick={() => handleTopicClick(topic)}
-                  className="w-full text-left p-12 hover:bg-slate-50 transition-all flex justify-between items-center group"
+                  className="w-full text-left p-5 sm:p-12 hover:bg-slate-50 transition-all flex justify-between items-center gap-3 group"
                 >
-                  <div className="flex items-center gap-10">
-                      <span className="text-slate-200 font-black text-6xl group-hover:text-yellow-500 transition-colors">{String(idx + 1).padStart(2, '0')}</span>
-                      <span className="font-black text-slate-800 text-3xl tracking-tighter">{topic}</span>
+                  <div className="flex items-center gap-4 sm:gap-10 min-w-0">
+                      <span className="text-slate-200 font-black text-2xl sm:text-6xl group-hover:text-yellow-500 transition-colors shrink-0">{String(idx + 1).padStart(2, '0')}</span>
+                      <span className="font-black text-slate-800 text-base sm:text-3xl tracking-tighter break-words">{topic}</span>
                   </div>
-                  <div className="bg-slate-950 text-white text-xs px-10 py-4 rounded-2xl font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all shadow-2xl translate-x-10 group-hover:translate-x-0">
+                  <div className="hidden sm:block bg-slate-950 text-white text-xs px-10 py-4 rounded-2xl font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all shadow-2xl translate-x-10 group-hover:translate-x-0 shrink-0">
                     ESTUDAR AGORA →
                   </div>
+                  <span className="sm:hidden text-slate-400 font-black text-lg shrink-0">→</span>
                 </button>
               ))}
             </div>
@@ -502,17 +503,17 @@ const App: React.FC = () => {
           userType="RECRUTA"
           userName={userName}
         />
-        <main className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all">
-          <div className="md:hidden bg-slate-950 text-white p-6 flex items-center justify-between sticky top-0 z-40 shadow-2xl border-b border-white/5">
-             <button onClick={() => setSidebarOpen(true)} className="p-3 border border-white/10 rounded-2xl bg-white/5">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        <main className="flex-1 md:ml-64 flex flex-col min-h-screen min-w-0 overflow-x-hidden transition-all">
+          <div className="md:hidden bg-slate-950 text-white px-4 py-4 flex items-center justify-between sticky top-0 z-40 shadow-2xl border-b border-white/5">
+             <button onClick={() => setSidebarOpen(true)} className="p-2.5 border border-white/10 rounded-xl bg-white/5 shrink-0" aria-label="Abrir menu">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
              </button>
-             <span className="font-black text-xl text-yellow-500 tracking-tighter uppercase italic">Aprova Elite IA</span>
-             <div className="w-10 h-10 rounded-xl bg-yellow-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-lg shadow-yellow-500/20">
+             <span className="font-black text-base sm:text-xl text-yellow-500 tracking-tighter uppercase italic truncate px-2">Aprova Elite IA</span>
+             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-yellow-500 text-slate-950 flex items-center justify-center font-black text-xs sm:text-sm shadow-lg shadow-yellow-500/20 shrink-0">
                {userName.substring(0, 2).toUpperCase()}
              </div>
           </div>
-          <div className="flex-1 p-6 md:p-16 max-w-[1800px] mx-auto w-full">
+          <div className="flex-1 px-4 py-5 sm:px-6 sm:py-8 md:p-16 max-w-[1800px] mx-auto w-full min-w-0">
             {renderPlatformContent()}
           </div>
 
@@ -600,19 +601,19 @@ const AppWithErrorBoundary = () => (
 );
 
 const SubjectSection = ({ title, items, onSubjectClick }: any) => (
-  <div className="space-y-8">
-     <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.4em] px-2">{title}</h3>
-     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
+  <div className="space-y-4 sm:space-y-8">
+     <h3 className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-wider sm:tracking-[0.4em] px-1 sm:px-2">{title}</h3>
+     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-6 md:gap-8">
         {items.map((sub: any) => (
           <button 
             key={sub.id}
             onClick={() => onSubjectClick(sub.id)}
-            className="bg-white p-8 rounded-[3rem] shadow-lg border border-slate-100 hover:border-yellow-500 transition-all flex flex-col items-center text-center gap-5 group"
+            className="bg-white p-4 sm:p-8 rounded-2xl sm:rounded-[3rem] shadow-lg border border-slate-100 hover:border-yellow-500 transition-all flex flex-col items-center text-center gap-3 sm:gap-5 group min-w-0"
           >
-            <div className="w-20 h-20 bg-slate-50 rounded-[2rem] flex items-center justify-center text-5xl group-hover:bg-yellow-50 transition-all">
+            <div className="w-14 h-14 sm:w-20 sm:h-20 bg-slate-50 rounded-xl sm:rounded-[2rem] flex items-center justify-center text-3xl sm:text-5xl group-hover:bg-yellow-50 transition-all shrink-0">
               {sub.icon}
             </div>
-            <h3 className="font-black text-slate-900 text-[10px] uppercase tracking-tight leading-tight">{sub.name}</h3>
+            <h3 className="font-black text-slate-900 text-[9px] sm:text-[10px] uppercase tracking-tight leading-tight break-words w-full">{sub.name}</h3>
           </button>
         ))}
      </div>

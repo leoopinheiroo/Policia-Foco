@@ -4,8 +4,17 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
+html {
+  @apply overflow-x-hidden;
+}
+
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-slate-50 text-slate-900 antialiased overflow-x-hidden min-h-dvh;
+}
+
+/* Safe area for iOS fixed elements */
+.pb-safe {
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
 }
 
 /* Custom animations */

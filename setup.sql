@@ -39,6 +39,19 @@ CREATE TABLE IF NOT EXISTS user_flashcards (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Banco compartilhado de flashcards por matéria (reuso entre alunos — evita regenerar com IA)
+CREATE TABLE IF NOT EXISTS flashcards_bank (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    materia TEXT NOT NULL,
+    assunto TEXT,
+    front TEXT NOT NULL,
+    back TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT flashcards_bank_materia_front_unique UNIQUE (materia, front)
+);
+
+CREATE INDEX IF NOT EXISTS flashcards_bank_materia_idx ON flashcards_bank (materia);
+
 CREATE TABLE IF NOT EXISTS essays_history (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_email TEXT REFERENCES users(email) ON DELETE CASCADE,
@@ -52,6 +65,7 @@ CREATE TABLE IF NOT EXISTS essays_history (
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE simulados_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_flashcards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE flashcards_bank ENABLE ROW LEVEL SECURITY;
 ALTER TABLE essays_history ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "users_select_own" ON users;
@@ -103,6 +117,17 @@ CREATE POLICY "flashcards_update_own" ON user_flashcards
 CREATE POLICY "flashcards_delete_own" ON user_flashcards
   FOR DELETE TO authenticated
   USING ((auth.jwt()->>'email') = user_email);
+
+DROP POLICY IF EXISTS "flashcards_bank_select_auth" ON flashcards_bank;
+DROP POLICY IF EXISTS "flashcards_bank_insert_auth" ON flashcards_bank;
+
+CREATE POLICY "flashcards_bank_select_auth" ON flashcards_bank
+  FOR SELECT TO authenticated
+  USING (true);
+
+CREATE POLICY "flashcards_bank_insert_auth" ON flashcards_bank
+  FOR INSERT TO authenticated
+  WITH CHECK (true);
 
 CREATE POLICY "essays_select_own" ON essays_history
   FOR SELECT TO authenticated

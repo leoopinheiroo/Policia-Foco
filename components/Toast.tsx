@@ -39,10 +39,10 @@ export const Toast: React.FC<ToastProps> = ({ message, type, isVisible, onClose 
           initial={{ opacity: 0, y: 50, x: '-50%' }}
           animate={{ opacity: 1, y: 0, x: '-50%' }}
           exit={{ opacity: 0, y: 20, x: '-50%' }}
-          className={`fixed bottom-8 left-1/2 z-[100] flex items-center gap-4 px-6 py-4 rounded-2xl border shadow-2xl min-w-[320px] ${colors[type]}`}
+          className={`fixed bottom-20 sm:bottom-8 left-1/2 z-[100] flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3 sm:py-4 rounded-2xl border shadow-2xl w-[calc(100%-2rem)] max-w-sm ${colors[type]}`}
         >
           {icons[type]}
-          <p className="text-sm font-bold text-slate-800 flex-1">{message}</p>
+          <p className="text-sm font-bold text-slate-800 flex-1 min-w-0 break-words">{message}</p>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
             <X className="w-4 h-4" />
           </button>

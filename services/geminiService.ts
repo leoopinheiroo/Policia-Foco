@@ -55,6 +55,35 @@ export const generateFlashcardsBatch = async (
   return data.flashcards;
 };
 
+/** Carrega do banco por matéria; se faltar, gera 1 lote e salva. */
+export const ensureFlashcardsForSubject = async (
+  subject: string,
+  options?: { target?: number; generate?: boolean; batchSize?: number }
+): Promise<{
+  flashcards: Flashcard[];
+  bankCount: number;
+  target: number;
+  needsMore: boolean;
+  generated: number;
+}> => {
+  const data = await apiJson<{
+    flashcards: Flashcard[];
+    bankCount: number;
+    target: number;
+    needsMore: boolean;
+    generated: number;
+  }>('/api/flashcards/for-subject', {
+    method: 'POST',
+    body: JSON.stringify({
+      subject,
+      target: options?.target ?? 50,
+      generate: options?.generate ?? true,
+      batchSize: options?.batchSize ?? 8,
+    }),
+  });
+  return data;
+};
+
 export const mentoriaChat = async (
   messages: { role: 'user' | 'model'; text: string }[],
   userMessage: string

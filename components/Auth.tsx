@@ -140,11 +140,11 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
           </button>
 
           <div className="text-center mb-10">
-             <h1 className="text-4xl font-black text-yellow-500 tracking-tighter italic mb-2">APROVA ELITE IA</h1>
+             <h1 className="text-2xl sm:text-4xl font-black text-yellow-500 tracking-tighter italic mb-2">APROVA ELITE IA</h1>
              <p className="text-slate-500 font-bold uppercase text-[9px] tracking-[0.4em]">{title}</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="bg-slate-900 border border-white/10 p-10 rounded-[3.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] space-y-7 relative overflow-hidden">
+          <form onSubmit={handleSubmit} className="bg-slate-900 border border-white/10 p-6 sm:p-10 rounded-3xl sm:rounded-[3.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] space-y-6 sm:space-y-7 relative overflow-hidden">
              {error && (
                <div className="bg-red-500/10 border border-red-500/30 p-5 rounded-2xl text-[10px] font-black text-red-500 uppercase tracking-widest animate-shake text-center">
                  {error}
@@ -259,7 +259,7 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
              <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-6 bg-yellow-500 text-slate-950 rounded-[1.5rem] font-black text-lg hover:bg-yellow-400 transition shadow-2xl shadow-yellow-500/10 flex items-center justify-center gap-4 disabled:opacity-50 active:scale-95 group"
+                className="w-full py-4 sm:py-6 bg-yellow-500 text-slate-950 rounded-[1.5rem] font-black text-base sm:text-lg hover:bg-yellow-400 transition shadow-2xl shadow-yellow-500/10 flex items-center justify-center gap-4 disabled:opacity-50 active:scale-95 group"
              >
                 {isLoading ? (
                    <div className="w-6 h-6 border-4 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
