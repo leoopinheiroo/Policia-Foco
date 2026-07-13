@@ -12,8 +12,8 @@ interface SimuladosProps {
 }
 
 const PREFETCH_BATCH = 2;
-/** Cada lote de 2 questões deve responder em no máximo 15s; senão cancela e tenta de novo. */
-const BATCH_TIMEOUT_MS = 15_000;
+/** Timeout por request — 1–2 questões; se estourar, cancela e tenta de novo. */
+const BATCH_TIMEOUT_MS = 22_000;
 
 export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
   const [state, setState] = useState<SimuladoState>('CONFIG');
@@ -31,10 +31,11 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
 
   const questionsRef = useRef<Question[]>([]);
   const planRef = useRef<string[]>([]);
-  const planIndexRef = useRef(0);
   const prefetchingRef = useRef(false);
   const activeSessionRef = useRef(0);
   const currentIndexRef = useRef(0);
+  const loopGenRef = useRef(0);
+  const stateRef = useRef<SimuladoState>('CONFIG');
 
   useEffect(() => {
     questionsRef.current = questions;
@@ -43,6 +44,10 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
   useEffect(() => {
     currentIndexRef.current = currentQIndex;
   }, [currentQIndex]);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const toggleSubject = (id: string) => {
     setSelectedSubjects(prev =>
@@ -75,7 +80,9 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
     return next;
   };
 
-  /** Busca lote com timeout de 15s — se estourar, cancela e tenta de novo até conseguir. */
+  const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+  /** Busca lote com timeout — se estourar ou vier duplicata, tenta de novo. */
   const fetchBatchWithRetry = async (
     subjectName: string,
     needed: number,
@@ -92,7 +99,7 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
         setLoadingProgress({
           ready: questionsRef.current.length,
           total: planRef.current.length,
-          label: `${subjectName} · tentativa ${attempt} · limite 15s`,
+          label: `${subjectName} · tentativa ${attempt}`,
         });
 
         const batch = await generateQuestionsForSubject(
@@ -103,126 +110,133 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
         window.clearTimeout(timer);
 
         if (Array.isArray(batch) && batch.length > 0) {
-          return batch.slice(0, needed);
+          // Só aceita se acrescentar algo novo ao buffer atual
+          const fresh = appendUnique([], batch).filter(q => {
+            const dup = questionsRef.current.some(
+              c => (c.id && c.id === q.id) || (c.texto && q.texto && c.texto === q.texto)
+            );
+            return !dup;
+          });
+          if (fresh.length > 0) return fresh.slice(0, needed);
+          console.warn(`[Simulado] Lote só com duplicatas (${subjectName}) #${attempt} — regenerando`);
+        } else {
+          console.warn(`[Simulado] Lote vazio (${subjectName}) #${attempt} — retry`);
         }
-        console.warn(`[Simulado] Lote vazio (${subjectName}) #${attempt} — retry`);
       } catch (e: any) {
         window.clearTimeout(timer);
         const elapsed = Date.now() - startedAt;
         const timedOut = controller.signal.aborted || elapsed >= BATCH_TIMEOUT_MS;
         console.warn(
-          `[Simulado] ${timedOut ? 'Timeout 15s' : 'Erro'} em ${subjectName} #${attempt}:`,
+          `[Simulado] ${timedOut ? 'Timeout' : 'Erro'} em ${subjectName} #${attempt}:`,
           e?.message || e
         );
       }
 
-      // Pausa curta antes do próximo attempt (não acumula espera longa)
-      await new Promise(r => setTimeout(r, 600));
+      await sleep(700);
     }
     return [];
   };
 
-  /** Continua carregando de 2 em 2 até o total — erros só atrasam, não param. */
+  /**
+   * Loop único até completar o plano.
+   * Cursor = questions.length (sem planIndex que dessincroniza).
+   * Watchdog reinicia se o loop morrer.
+   */
   const continuePrefetch = useCallback(async (sessionId: number) => {
     if (prefetchingRef.current) return;
+    if (activeSessionRef.current !== sessionId) return;
+    if (questionsRef.current.length >= planRef.current.length) return;
+
     prefetchingRef.current = true;
+    const myLoop = ++loopGenRef.current;
     setIsPrefetching(true);
 
     try {
       while (
         activeSessionRef.current === sessionId &&
+        myLoop === loopGenRef.current &&
         questionsRef.current.length < planRef.current.length
       ) {
-        const remaining = planRef.current.length - questionsRef.current.length;
+        const before = questionsRef.current.length;
+        const remaining = planRef.current.length - before;
         const take = Math.min(PREFETCH_BATCH, remaining);
-
-        // Cursor circular: se passou do fim, reinicia para completar faltantes
-        if (planIndexRef.current >= planRef.current.length) {
-          planIndexRef.current = 0;
-        }
-        const start = planIndexRef.current;
-        const subjectsSlice: string[] = [];
-        for (let i = 0; i < take; i++) {
-          subjectsSlice.push(planRef.current[(start + i) % planRef.current.length]);
-        }
-        planIndexRef.current = start + take;
+        // Próximas matérias do plano na ordem das vagas ainda vazias
+        const subjectsSlice = planRef.current.slice(before, before + take);
 
         const bySubject = new Map<string, number>();
         for (const name of subjectsSlice) {
           bySubject.set(name, (bySubject.get(name) || 0) + 1);
         }
 
-        let got: Question[] = [];
-        try {
-          for (const [name, count] of bySubject) {
-            if (activeSessionRef.current !== sessionId) return;
-            const batch = await fetchBatchWithRetry(name, count, sessionId);
-            got = appendUnique(got, batch);
-          }
-        } catch (e) {
-          console.warn('[Simulado] Erro no ciclo de prefetch (seguindo):', e);
-          await new Promise(r => setTimeout(r, 2000));
-          continue;
-        }
+        let added = 0;
+        for (const [name, count] of bySubject) {
+          if (activeSessionRef.current !== sessionId || myLoop !== loopGenRef.current) break;
+          const batch = await fetchBatchWithRetry(name, count, sessionId);
+          if (!batch.length) continue;
 
-        if (activeSessionRef.current !== sessionId) return;
-
-        if (got.length === 0) {
-          // Fallback: tenta qualquer matéria do plano
-          const fallback = planRef.current[questionsRef.current.length % planRef.current.length];
-          try {
-            const batch = await fetchBatchWithRetry(fallback, take, sessionId);
-            got = appendUnique(got, batch);
-          } catch (e) {
-            console.warn('[Simulado] Fallback também falhou:', e);
-          }
-          if (got.length === 0) {
-            await new Promise(r => setTimeout(r, 2500));
-            continue;
+          const merged = appendUnique(questionsRef.current, batch).slice(0, planRef.current.length);
+          const grew = merged.length - questionsRef.current.length;
+          if (grew > 0) {
+            questionsRef.current = merged;
+            setQuestions([...merged]);
+            added += grew;
+            setLoadingProgress({
+              ready: merged.length,
+              total: planRef.current.length,
+              label: `Gerando ${merged.length}/${planRef.current.length}`,
+            });
           }
         }
 
-        const merged = appendUnique(questionsRef.current, got).slice(0, planRef.current.length);
-        questionsRef.current = merged;
-        setQuestions(merged);
-        setLoadingProgress({
-          ready: merged.length,
-          total: planRef.current.length,
-          label: `Buffer ${merged.length}/${planRef.current.length}`,
-        });
+        if (activeSessionRef.current !== sessionId || myLoop !== loopGenRef.current) break;
+
+        if (added === 0) {
+          // Sem progresso: troca a matéria e tenta de novo
+          const fallback =
+            planRef.current[(questionsRef.current.length + 1) % planRef.current.length] ||
+            planRef.current[0];
+          console.warn('[Simulado] Sem progresso — fallback', fallback);
+          const batch = await fetchBatchWithRetry(fallback, 1, sessionId);
+          if (batch.length) {
+            const merged = appendUnique(questionsRef.current, batch).slice(0, planRef.current.length);
+            questionsRef.current = merged;
+            setQuestions([...merged]);
+            setLoadingProgress({
+              ready: merged.length,
+              total: planRef.current.length,
+              label: `Gerando ${merged.length}/${planRef.current.length}`,
+            });
+          } else {
+            await sleep(1500);
+          }
+        }
       }
     } catch (e) {
-      console.error('[Simulado] Prefetch interrompido, reiniciando:', e);
-      // Reinicia sozinho se a sessão ainda estiver ativa e incompleta
-      if (
-        activeSessionRef.current === sessionId &&
-        questionsRef.current.length < planRef.current.length
-      ) {
-        prefetchingRef.current = false;
-        setIsPrefetching(false);
-        await new Promise(r => setTimeout(r, 2000));
-        void continuePrefetch(sessionId);
-        return;
-      }
+      console.error('[Simulado] Prefetch interrompido:', e);
     } finally {
-      if (activeSessionRef.current === sessionId) {
+      if (myLoop === loopGenRef.current) {
         prefetchingRef.current = false;
         setIsPrefetching(false);
-        // Se ainda faltam itens, agenda nova rodada
-        if (questionsRef.current.length < planRef.current.length) {
-          setTimeout(() => {
-            if (
-              activeSessionRef.current === sessionId &&
-              questionsRef.current.length < planRef.current.length &&
-              !prefetchingRef.current
-            ) {
-              void continuePrefetch(sessionId);
-            }
-          }, 1500);
-        }
       }
     }
   }, []);
+
+  // Watchdog: se a sessão está ativa e incompleta sem loop rodando, reinicia
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const sessionId = activeSessionRef.current;
+      if (!sessionId) return;
+      if (stateRef.current !== 'RUNNING' && stateRef.current !== 'LOADING') return;
+      if (questionsRef.current.length >= planRef.current.length) return;
+      if (prefetchingRef.current) return;
+      console.warn('[Simulado] Watchdog reiniciando geração', {
+        ready: questionsRef.current.length,
+        total: planRef.current.length,
+      });
+      void continuePrefetch(sessionId);
+    }, 6000);
+    return () => window.clearInterval(id);
+  }, [continuePrefetch]);
 
   const startSimulado = async () => {
     if (selectedSubjects.length === 0) {
@@ -233,10 +247,10 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
     const sessionId = Date.now();
     activeSessionRef.current = sessionId;
     prefetchingRef.current = false;
+    loopGenRef.current += 1;
 
     const plan = buildSubjectPlan(selectedSubjects, examLength);
     planRef.current = plan;
-    planIndexRef.current = 0;
     questionsRef.current = [];
     setQuestions([]);
     setAnswers({});
@@ -248,8 +262,6 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
 
     try {
       const firstSubjects = plan.slice(0, PREFETCH_BATCH);
-      planIndexRef.current = firstSubjects.length;
-
       const bySubject = new Map<string, number>();
       for (const name of firstSubjects) {
         bySubject.set(name, (bySubject.get(name) || 0) + 1);
@@ -257,9 +269,10 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
 
       let initial: Question[] = [];
       let bootAttempt = 0;
-      while (initial.length === 0 && bootAttempt < 8 && activeSessionRef.current === sessionId) {
+      while (initial.length < Math.min(2, examLength) && bootAttempt < 10 && activeSessionRef.current === sessionId) {
         bootAttempt += 1;
         for (const [name, count] of bySubject) {
+          if (initial.length >= 2) break;
           setLoadingProgress({
             ready: initial.length,
             total: examLength,
@@ -269,7 +282,7 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
           initial = appendUnique(initial, batch);
         }
         if (initial.length === 0) {
-          await new Promise(r => setTimeout(r, 2000));
+          await sleep(1500);
         }
       }
 
