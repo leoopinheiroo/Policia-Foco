@@ -133,13 +133,6 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
         activeSessionRef.current === sessionId &&
         questionsRef.current.length < planRef.current.length
       ) {
-        const ahead = questionsRef.current.length - currentIndexRef.current;
-        // Buffer ok: espera o aluno avançar, mas mantém o loop vivo
-        if (ahead > 3) {
-          await new Promise(r => setTimeout(r, 500));
-          continue;
-        }
-
         const remaining = planRef.current.length - questionsRef.current.length;
         const take = Math.min(PREFETCH_BATCH, remaining);
 
@@ -387,7 +380,7 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
         <div className="bg-slate-900 rounded-[3rem] p-12 text-white mb-10 shadow-2xl">
           <h2 className="text-4xl font-black tracking-tighter mb-4">Simulado de Elite</h2>
           <p className="text-slate-400 font-medium text-lg">
-            Personalize seu treinamento. As questões carregam de 2 em 2 enquanto você responde — sem espera longa no início.
+            Personalize seu treinamento. Começa em segundos e vai gerando todas as questões em segundo plano até o fim — mesmo sem você avançar.
           </p>
         </div>
 
@@ -454,7 +447,7 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
           </div>
           {selectedSubjects.length > 0 && (
             <p className="mt-6 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              Média: {Math.floor(examLength / selectedSubjects.length)} questões por matéria · carregamento progressivo (2 em 2)
+              Média: {Math.floor(examLength / selectedSubjects.length)} questões por matéria · gera 2 a 2 até completar
             </p>
           )}
         </div>
