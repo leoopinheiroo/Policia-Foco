@@ -35,9 +35,14 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
   const [isInitialLoading, setIsInitialLoading] = useState(!initialQuestions || initialQuestions.length === 0);
   const [errorState, setErrorState] = useState<string | null>(null);
   const [isPrefetching, setIsPrefetching] = useState(false);
+  const [isAdvancing, setIsAdvancing] = useState(false);
   const startTimeRef = useRef<number>(Date.now());
-
   const prefetchingRef = useRef(false);
+  const questionsRef = useRef<Question[]>(initialQuestions || []);
+
+  useEffect(() => {
+    questionsRef.current = questions;
+  }, [questions]);
 
   useEffect(() => {
     startTimeRef.current = Date.now();
@@ -162,12 +167,58 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
     setIsSaved(saved.includes(q.id));
   }, [currentIndex, questions, userHistory]);
 
-  const handleNext = () => {
-    if (currentIndex < questions.length - 1) {
-      setCurrentIndex(prev => prev + 1);
-      setSelectedOption(null);
-      setIsSaved(false);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+  const goToQuestion = (index: number) => {
+    setCurrentIndex(index);
+    setSelectedOption(null);
+    setIsSaved(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleNext = async () => {
+    if (isAdvancing) return;
+
+    if (currentIndex < questionsRef.current.length - 1) {
+      goToQuestion(currentIndex + 1);
+      return;
+    }
+
+    setIsAdvancing(true);
+    try {
+      // Se o prefetch já está rodando, espera a fila crescer
+      if (prefetchingRef.current) {
+        showToast('Preparando a próxima questão...', 'info');
+        const startedLen = questionsRef.current.length;
+        for (let i = 0; i < 60; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          if (questionsRef.current.length > startedLen) {
+            goToQuestion(startedLen);
+            return;
+          }
+          if (!prefetchingRef.current && i > 1) break;
+        }
+      }
+
+      const newQ = await fetchSinglePoliceQuestion(subject, topic);
+      if (!newQ || !validateQuestion(newQ)) {
+        throw new Error('Não foi possível gerar a próxima questão.');
+      }
+
+      const prev = questionsRef.current;
+      const existing = prev.findIndex(q => q.id === newQ.id);
+      if (existing >= 0) {
+        goToQuestion(existing);
+        return;
+      }
+
+      const nextList = [...prev, newQ];
+      questionsRef.current = nextList;
+      setQuestions(nextList);
+      goToQuestion(nextList.length - 1);
+    } catch (e: any) {
+      console.error('Erro ao avançar treinamento:', e);
+      showToast(e?.message || 'Falha ao carregar a próxima questão. Tente novamente.', 'error');
+    } finally {
+      setIsAdvancing(false);
     }
   };
 
@@ -362,9 +413,13 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
                  <StructuredCommentary text={currentQuestion.comentario} />
 
                  <div className="flex justify-center mt-20">
-                    <button onClick={handleNext} className="group bg-slate-950 text-white px-20 py-8 rounded-[2.5rem] font-black text-2xl shadow-2xl hover:bg-yellow-500 hover:text-slate-950 transition-all flex items-center gap-8">
-                      PROSSEGUIR TREINAMENTO
-                      <span className="group-hover:translate-x-3 transition-transform">→</span>
+                    <button
+                      onClick={handleNext}
+                      disabled={isAdvancing}
+                      className="group bg-slate-950 text-white px-20 py-8 rounded-[2.5rem] font-black text-2xl shadow-2xl hover:bg-yellow-500 hover:text-slate-950 transition-all flex items-center gap-8 disabled:opacity-60 disabled:cursor-wait"
+                    >
+                      {isAdvancing ? 'CARREGANDO PRÓXIMA...' : 'PROSSEGUIR TREINAMENTO'}
+                      <span className="group-hover:translate-x-3 transition-transform">{isAdvancing ? '…' : '→'}</span>
                     </button>
                  </div>
               </div>
