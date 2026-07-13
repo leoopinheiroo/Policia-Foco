@@ -1,3 +1,6 @@
+const getGeminiModel = () =>
+  (process.env.GEMINI_MODEL || 'gemini-3.5-flash').trim() || 'gemini-3.5-flash';
+
 let aiInstance: any = null;
 
 const getAi = async (): Promise<any> => {
@@ -134,32 +137,40 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 4, delay = 2000): Pr
   try {
     return await fn();
   } catch (error: any) {
-    const errorMessage = (error?.message || '').toLowerCase();
+    const errorMessage = (error?.message || String(error) || '').toLowerCase();
     const isQuotaError =
       errorMessage.includes('429') ||
       errorMessage.includes('resource_exhausted') ||
-      errorMessage.includes('quota') ||
-      errorMessage.includes('limit');
+      errorMessage.includes('quota exceeded') ||
+      errorMessage.includes('rate limit') ||
+      errorMessage.includes('rate_limit') ||
+      errorMessage.includes('too many requests');
 
     const isRetryable =
       isQuotaError ||
-      errorMessage.includes('500') ||
       errorMessage.includes('503') ||
-      errorMessage.includes('fetch') ||
-      errorMessage.includes('mismatch') ||
-      errorMessage.includes('content') ||
-      errorMessage.includes('server');
+      errorMessage.includes('unavailable') ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('econnreset') ||
+      errorMessage.includes('fetch failed') ||
+      errorMessage.includes('internal error');
 
     if (retries > 0 && isRetryable) {
+      console.warn('Gemini retry (' + retries + ' left):', error?.message || error);
       await new Promise(resolve => setTimeout(resolve, delay));
       return withRetry(fn, retries - 1, delay * 2);
     }
 
+    console.error('Gemini final error:', error?.message || error);
     if (isQuotaError) {
       throw new Error("Muitas solicitações ao mesmo tempo. Aguarde alguns segundos e tente novamente.");
     }
-    if (errorMessage.includes('fetch') || errorMessage.includes('connection')) {
-      throw new Error("Conexão instável com a IA. Tente novamente em instantes.");
+    if (errorMessage.includes('api_key') || errorMessage.includes('api key') || errorMessage.includes('chave_api')) {
+      throw new Error("CHAVE_API_AUSENTE: Configure GEMINI_API_KEY no servidor.");
+    }
+    const original = (error?.message || '').toString();
+    if (original && original.length < 240 && !original.includes('\n')) {
+      throw new Error(original);
     }
     throw new Error("Instabilidade momentânea no servidor de IA. Tente novamente em alguns segundos.");
   }
@@ -255,7 +266,7 @@ export const fetchFilteredQuestions = async (
     const statusGuidance = buildStatusGuidance(filters, history);
 
     const response = await (await getAi()).models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: getGeminiModel(),
       contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
         MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para: ${filterDesc}.
         Nível: Muito Difícil (Padrão Delegado/Perito/Agente Federal).
@@ -303,7 +314,7 @@ export const fetchSinglePoliceQuestion = async (
 
   const request = withRetry(async () => {
     const response = await (await getAi()).models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: getGeminiModel(),
       contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
         MISSÃO: Gerar 1 questão técnica inédita EXCLUSIVAMENTE para:
         MATÉRIA: "${subject}"
@@ -344,7 +355,7 @@ export const generateQuestionsForSubject = async (
 
   const request = withRetry(async () => {
     const response = await (await getAi()).models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: getGeminiModel(),
       contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
         MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: "${subject}".
         Nível: Muito Difícil.
@@ -381,7 +392,7 @@ export const generateQuestionsForSubject = async (
 export const correctEssayWithAi = async (essay: string, theme: string): Promise<EssayFeedback> => {
   return withRetry(async () => {
     const response = await (await getAi()).models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: getGeminiModel(),
       contents: `Você é um avaliador sênior de redações para concursos.
         TEMA PROPOSTO: "${theme}"
         REDAÇÃO PARA AVALIAÇÃO:
@@ -443,7 +454,7 @@ export const generateFlashcardsBatch = async (
 
   const request = withRetry(async () => {
     const response = await (await getAi()).models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: getGeminiModel(),
       contents: `VOCÊ É UM ESPECIALISTA EM MEMORIZAÇÃO E ACTIVE RECALL.
         MISSÃO: Gerar ${count} flashcards de alto rendimento para a matéria: ${subject}.
         REGRAS: front = pergunta/gatilho; back = explicação rica com bases legais/mnemônicos.`,
@@ -491,7 +502,7 @@ export const mentoriaChat = async (
 ): Promise<string> => {
   return withRetry(async () => {
     const response = await (await getAi()).models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: getGeminiModel(),
       config: {
         systemInstruction: "Você é um Mentor de Elite para concursos policiais brasileiros (PF, PRF, PC, PM). Seu objetivo é ajudar o aluno com estratégias de estudo, cronogramas, motivação e explicação de temas. Seja direto, técnico e motivador. Use termos policiais se apropriado (ex: \"Operador\", \"QAP\", \"Foco na Missão\")."
       },

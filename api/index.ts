@@ -22,12 +22,14 @@ type AuthedRequest = express.Request & {
   user: { id: string; email: string };
 };
 
-/* ==== Gemini (inlined — Vercel não resolve imports externos de forma confiável) ==== */
+/* ==== Gemini (inlined para bundle Vercel) ==== */
+const getGeminiModel = () =>
+  (process.env.GEMINI_MODEL || 'gemini-3.5-flash').trim() || 'gemini-3.5-flash';
+
 let aiInstance: any = null;
 
 const getAi = async (): Promise<any> => {
   if (!aiInstance) {
-    // Dynamic import: NFT inclui o pacote sem executar no cold start.
     const { GoogleGenAI } = await import('@google/genai');
     const apiKey = (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim();
     if (!apiKey) {
@@ -160,34 +162,42 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 4, delay = 2000): Pr
   try {
     return await fn();
   } catch (error: any) {
-    const errorMessage = (error?.message || '').toLowerCase();
+    const errorMessage = (error?.message || String(error) || '').toLowerCase();
     const isQuotaError =
       errorMessage.includes('429') ||
       errorMessage.includes('resource_exhausted') ||
-      errorMessage.includes('quota') ||
-      errorMessage.includes('limit');
+      errorMessage.includes('quota exceeded') ||
+      errorMessage.includes('rate limit') ||
+      errorMessage.includes('rate_limit') ||
+      errorMessage.includes('too many requests');
 
     const isRetryable =
       isQuotaError ||
-      errorMessage.includes('500') ||
       errorMessage.includes('503') ||
-      errorMessage.includes('fetch') ||
-      errorMessage.includes('mismatch') ||
-      errorMessage.includes('content') ||
-      errorMessage.includes('server');
+      errorMessage.includes('unavailable') ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('econnreset') ||
+      errorMessage.includes('fetch failed') ||
+      errorMessage.includes('internal error');
 
     if (retries > 0 && isRetryable) {
+      console.warn('Gemini retry (' + retries + ' left):', error?.message || error);
       await new Promise(resolve => setTimeout(resolve, delay));
       return withRetry(fn, retries - 1, delay * 2);
     }
 
+    console.error('Gemini final error:', error?.message || error);
     if (isQuotaError) {
-      throw new Error("Muitas solicitaÃ§Ãµes ao mesmo tempo. Aguarde alguns segundos e tente novamente.");
+      throw new Error("Muitas solicitações ao mesmo tempo. Aguarde alguns segundos e tente novamente.");
     }
-    if (errorMessage.includes('fetch') || errorMessage.includes('connection')) {
-      throw new Error("ConexÃ£o instÃ¡vel com a IA. Tente novamente em instantes.");
+    if (errorMessage.includes('api_key') || errorMessage.includes('api key') || errorMessage.includes('chave_api')) {
+      throw new Error("CHAVE_API_AUSENTE: Configure GEMINI_API_KEY no servidor.");
     }
-    throw new Error("Instabilidade momentÃ¢nea no servidor de IA. Tente novamente em alguns segundos.");
+    const original = (error?.message || '').toString();
+    if (original && original.length < 240 && !original.includes('\n')) {
+      throw new Error(original);
+    }
+    throw new Error("Instabilidade momentânea no servidor de IA. Tente novamente em alguns segundos.");
   }
 }
 
@@ -211,19 +221,19 @@ const QUESTION_SCHEMA = {
 };
 
 const DETAILED_COMMENTARY_INSTRUCTION = `
-PARA O CAMPO 'comentario', VOCÃŠ DEVE SEGUIR ESTE FORMATO OBRIGATÃ“RIO (USE ESTES MARCADORES EXATOS):
+PARA O CAMPO 'comentario', VOCÊ DEVE SEGUIR ESTE FORMATO OBRIGATÓRIO (USE ESTES MARCADORES EXATOS):
 
 [RESUMO DA CORRETA]
-Explicar de forma profunda e tÃ©cnica por que a alternativa correta estÃ¡ certa.
+Explicar de forma profunda e técnica por que a alternativa correta está certa.
 
-[POR QUE AS OUTRAS ESTÃƒO ERRADAS?]
+[POR QUE AS OUTRAS ESTÃO ERRADAS?]
 Comente cada uma das alternativas incorretas.
 
-[MNEMÃ”NICO / DICA DE OURO]
-ForneÃ§a um macete ou dica prÃ¡tica.
+[MNEMÔNICO / DICA DE OURO]
+Forneça um macete ou dica prática.
 
 [RESUMO DO TEMA]
-Um parÃ¡grafo de fechamento sintetizando a teoria cobrada.
+Um parágrafo de fechamento sintetizando a teoria cobrada.
 `;
 
 function buildStatusGuidance(filters: QuestionFilters, history?: UserHistory | null): string {
@@ -246,13 +256,13 @@ function buildStatusGuidance(filters: QuestionFilters, history?: UserHistory | n
 
   switch (status) {
     case 'ERREI':
-      return `FOCO PEDAGÃ“GICO: O aluno errou questÃµes em: ${topWrong.join(', ') || 'diversas matÃ©rias'}. Gere questÃµes que reforcem esses pontos fracos.`;
+      return `FOCO PEDAGÓGICO: O aluno errou questões em: ${topWrong.join(', ') || 'diversas matérias'}. Gere questões que reforcem esses pontos fracos.`;
     case 'ACERTEI':
-      return `FOCO PEDAGÃ“GICO: O aluno acertou bem em: ${topCorrect.join(', ') || 'diversas matÃ©rias'}. Gere questÃµes um nÃ­vel acima nesses temas para consolidar.`;
+      return `FOCO PEDAGÓGICO: O aluno acertou bem em: ${topCorrect.join(', ') || 'diversas matérias'}. Gere questões um nível acima nesses temas para consolidar.`;
     case 'RESOLVIDAS':
-      return `FOCO: Variar temas jÃ¡ praticados pelo aluno, com pegadinhas novas (nÃ£o repetir enunciados Ã³bvios).`;
+      return `FOCO: Variar temas já praticados pelo aluno, com pegadinhas novas (não repetir enunciados óbvios).`;
     case 'NAO_RESOLVIDAS':
-      return `FOCO: Priorizar temas ainda pouco explorados pelo aluno, evitando repetir o nÃºcleo dos erros/acertos jÃ¡ registrados.`;
+      return `FOCO: Priorizar temas ainda pouco explorados pelo aluno, evitando repetir o núcleo dos erros/acertos já registrados.`;
     default:
       return '';
   }
@@ -270,7 +280,7 @@ const fetchFilteredQuestions = async (
 
   const request = withRetry(async () => {
     const filterDesc = [
-      filters.materia ? `MatÃ©ria: ${filters.materia}` : '',
+      filters.materia ? `Matéria: ${filters.materia}` : '',
       filters.assunto ? `Assunto: ${filters.assunto}` : '',
       filters.banca ? `Banca: ${filters.banca}` : 'Banca: FGV ou CEBRASPE',
       filters.ano ? `Ano: ${filters.ano}` : '',
@@ -281,15 +291,15 @@ const fetchFilteredQuestions = async (
     const statusGuidance = buildStatusGuidance(filters, history);
 
     const response = await (await getAi()).models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `VOCÃŠ Ã‰ UM ARQUITETO DE CONTEÃšDO EDUCACIONAL SÃŠNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
-        MISSÃƒO: Gerar um lote de ${count} questÃµes tÃ©cnicas inÃ©ditas EXCLUSIVAMENTE para: ${filterDesc}.
-        NÃ­vel: Muito DifÃ­cil (PadrÃ£o Delegado/Perito/Agente Federal).
+      model: getGeminiModel(),
+      contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
+        MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para: ${filterDesc}.
+        Nível: Muito Difícil (Padrão Delegado/Perito/Agente Federal).
         ${statusGuidance}
 
-        DIRETRIZES DE QUALIDADE PEDAGÃ“GICA:
-        1. A alternativa correta deve ser irrefutÃ¡vel.
-        2. As incorretas devem ser plausÃ­veis (pegadinhas de alto nÃ­vel).
+        DIRETRIZES DE QUALIDADE PEDAGÓGICA:
+        1. A alternativa correta deve ser irrefutável.
+        2. As incorretas devem ser plausíveis (pegadinhas de alto nível).
         ${DETAILED_COMMENTARY_INSTRUCTION}`,
       config: {
         responseMimeType: "application/json",
@@ -329,12 +339,12 @@ const fetchSinglePoliceQuestion = async (
 
   const request = withRetry(async () => {
     const response = await (await getAi()).models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `VOCÃŠ Ã‰ UM ARQUITETO DE CONTEÃšDO EDUCACIONAL SÃŠNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
-        MISSÃƒO: Gerar 1 questÃ£o tÃ©cnica inÃ©dita EXCLUSIVAMENTE para:
-        MATÃ‰RIA: "${subject}"
+      model: getGeminiModel(),
+      contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
+        MISSÃO: Gerar 1 questão técnica inédita EXCLUSIVAMENTE para:
+        MATÉRIA: "${subject}"
         ASSUNTO: "${topic}"
-        NÃ­vel: Muito DifÃ­cil. Banca: CEBRASPE ou FGV.
+        Nível: Muito Difícil. Banca: CEBRASPE ou FGV.
         ${DETAILED_COMMENTARY_INSTRUCTION}`,
       config: {
         responseMimeType: "application/json",
@@ -370,10 +380,10 @@ const generateQuestionsForSubject = async (
 
   const request = withRetry(async () => {
     const response = await (await getAi()).models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `VOCÃŠ Ã‰ UM ARQUITETO DE CONTEÃšDO EDUCACIONAL SÃŠNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
-        MISSÃƒO: Gerar um lote de ${count} questÃµes tÃ©cnicas inÃ©ditas EXCLUSIVAMENTE para a matÃ©ria: "${subject}".
-        NÃ­vel: Muito DifÃ­cil.
+      model: getGeminiModel(),
+      contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
+        MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: "${subject}".
+        Nível: Muito Difícil.
         ${DETAILED_COMMENTARY_INSTRUCTION}`,
       config: {
         responseMimeType: "application/json",
@@ -407,10 +417,10 @@ const generateQuestionsForSubject = async (
 const correctEssayWithAi = async (essay: string, theme: string): Promise<EssayFeedback> => {
   return withRetry(async () => {
     const response = await (await getAi()).models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `VocÃª Ã© um avaliador sÃªnior de redaÃ§Ãµes para concursos.
+      model: getGeminiModel(),
+      contents: `Você é um avaliador sênior de redações para concursos.
         TEMA PROPOSTO: "${theme}"
-        REDAÃ‡ÃƒO PARA AVALIAÃ‡ÃƒO:
+        REDAÇÃO PARA AVALIAÇÃO:
         ${essay}`,
       config: {
         responseMimeType: "application/json",
@@ -469,10 +479,10 @@ const generateFlashcardsBatch = async (
 
   const request = withRetry(async () => {
     const response = await (await getAi()).models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `VOCÃŠ Ã‰ UM ESPECIALISTA EM MEMORIZAÃ‡ÃƒO E ACTIVE RECALL.
-        MISSÃƒO: Gerar ${count} flashcards de alto rendimento para a matÃ©ria: ${subject}.
-        REGRAS: front = pergunta/gatilho; back = explicaÃ§Ã£o rica com bases legais/mnemÃ´nicos.`,
+      model: getGeminiModel(),
+      contents: `VOCÊ É UM ESPECIALISTA EM MEMORIZAÇÃO E ACTIVE RECALL.
+        MISSÃO: Gerar ${count} flashcards de alto rendimento para a matéria: ${subject}.
+        REGRAS: front = pergunta/gatilho; back = explicação rica com bases legais/mnemônicos.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -517,16 +527,16 @@ const mentoriaChat = async (
 ): Promise<string> => {
   return withRetry(async () => {
     const response = await (await getAi()).models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: getGeminiModel(),
       config: {
-        systemInstruction: "VocÃª Ã© um Mentor de Elite para concursos policiais brasileiros (PF, PRF, PC, PM). Seu objetivo Ã© ajudar o aluno com estratÃ©gias de estudo, cronogramas, motivaÃ§Ã£o e explicaÃ§Ã£o de temas. Seja direto, tÃ©cnico e motivador. Use termos policiais se apropriado (ex: \"Operador\", \"QAP\", \"Foco na MissÃ£o\")."
+        systemInstruction: "Você é um Mentor de Elite para concursos policiais brasileiros (PF, PRF, PC, PM). Seu objetivo é ajudar o aluno com estratégias de estudo, cronogramas, motivação e explicação de temas. Seja direto, técnico e motivador. Use termos policiais se apropriado (ex: \"Operador\", \"QAP\", \"Foco na Missão\")."
       },
       contents: [
         ...messages.map(m => ({ role: m.role, parts: [{ text: m.text }] })),
         { role: 'user', parts: [{ text: userMessage }] }
       ]
     });
-    return response.text || "Desculpe, tive um problema na comunicaÃ§Ã£o. QAP?";
+    return response.text || "Desculpe, tive um problema na comunicação. QAP?";
   });
 };
 
@@ -566,7 +576,7 @@ const checkSupabase = (req: express.Request, res: express.Response, next: expres
     if (!url) missing.push('SUPABASE_URL');
     if (!serviceKey && !anonKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
     return res.status(500).json({
-      error: `Supabase nÃ£o configurado: ${missing.join(', ') || 'erro de inicializaÃ§Ã£o'}.`,
+      error: `Supabase não configurado: ${missing.join(', ') || 'erro de inicialização'}.`,
     });
   }
   (req as AuthedRequest).supabase = supabase;
@@ -577,18 +587,18 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
   try {
     const supabase = (req as AuthedRequest).supabase || getSupabase();
     if (!supabase) {
-      return res.status(500).json({ error: 'Supabase nÃ£o configurado.' });
+      return res.status(500).json({ error: 'Supabase não configurado.' });
     }
 
     const header = req.headers.authorization || '';
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
     if (!token) {
-      return res.status(401).json({ error: 'NÃ£o autenticado. Token ausente.' });
+      return res.status(401).json({ error: 'Não autenticado. Token ausente.' });
     }
 
     const { data, error } = await supabase.auth.getUser(token);
     if (error || !data.user?.email) {
-      return res.status(401).json({ error: 'SessÃ£o invÃ¡lida ou expirada.' });
+      return res.status(401).json({ error: 'Sessão inválida ou expirada.' });
     }
 
     (req as AuthedRequest).supabase = supabase;
@@ -598,7 +608,7 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
     };
     next();
   } catch (e: any) {
-    return res.status(401).json({ error: e.message || 'Falha na autenticaÃ§Ã£o.' });
+    return res.status(401).json({ error: e.message || 'Falha na autenticação.' });
   }
 };
 
@@ -661,7 +671,7 @@ const updateStreak = (history: any) => {
 
 app.use(cors());
 
-app.get('/api/health', async (req, res) => {
+app.get('/api/health', async (_req, res) => {
   const supabase = getSupabase();
   const missingKeys: string[] = [];
   if (!process.env.SUPABASE_URL && !process.env.VITE_SUPABASE_URL) missingKeys.push('SUPABASE_URL');
@@ -682,23 +692,12 @@ app.get('/api/health', async (req, res) => {
     }
   }
 
-  let gemini_module: string | null = null;
-  if (String(req.query.check_ai) === '1') {
-    try {
-      await getAi();
-      gemini_module = 'ok';
-    } catch (e: any) {
-      gemini_module = e?.message || String(e);
-    }
-  }
-
   res.json({
     status: 'ok',
     supabase: !!supabase,
     database_connectivity: dbStatus,
     database_error: dbError,
     missing_keys: missingKeys,
-    gemini_module,
     env: process.env.NODE_ENV,
   });
 });
@@ -787,7 +786,7 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), checkSupabas
 
 app.use(express.json({ limit: '2mb' }));
 
-// --- Profile bootstrap (apÃ³s signup Supabase Auth) ---
+// --- Profile bootstrap (após signup Supabase Auth) ---
 app.post('/api/user/ensure-profile', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { email } = (req as AuthedRequest).user;
@@ -820,7 +819,7 @@ app.get('/api/user/history', checkSupabase, requireAuth, async (req, res) => {
     const user = await ensureUserRow((req as AuthedRequest).supabase, email);
     res.json({ history: user.history || defaultHistory() });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar histÃ³rico.' });
+    res.status(500).json({ error: 'Erro ao buscar histórico.' });
   }
 });
 
@@ -851,7 +850,7 @@ app.post('/api/user/history/save', checkSupabase, requireAuth, async (req, res) 
     res.json({ success: true, history });
   } catch (error) {
     console.error('Save history error:', error);
-    res.status(500).json({ error: 'Erro ao salvar histÃ³rico.' });
+    res.status(500).json({ error: 'Erro ao salvar histórico.' });
   }
 });
 
@@ -860,7 +859,7 @@ app.post('/api/user/dossier/save', checkSupabase, requireAuth, async (req, res) 
     const supabase = (req as AuthedRequest).supabase;
     const { email } = (req as AuthedRequest).user;
     const { questionId, remove } = req.body;
-    if (!questionId) return res.status(400).json({ error: 'questionId obrigatÃ³rio.' });
+    if (!questionId) return res.status(400).json({ error: 'questionId obrigatório.' });
 
     const user = await ensureUserRow(supabase, email);
     const history = { ...defaultHistory(), ...(user.history || {}) };
@@ -879,7 +878,7 @@ app.post('/api/user/dossier/save', checkSupabase, requireAuth, async (req, res) 
     res.json({ success: true, savedQuestions: history.savedQuestions });
   } catch (error) {
     console.error('Dossier save error:', error);
-    res.status(500).json({ error: 'Erro ao salvar no dossiÃª.' });
+    res.status(500).json({ error: 'Erro ao salvar no dossiê.' });
   }
 });
 
@@ -908,7 +907,7 @@ app.post('/api/user/study/save', checkSupabase, requireAuth, async (req, res) =>
     res.json({ success: true });
   } catch (error) {
     console.error('Save study session error:', error);
-    res.status(500).json({ error: 'Erro ao salvar sessÃ£o de estudo.' });
+    res.status(500).json({ error: 'Erro ao salvar sessão de estudo.' });
   }
 });
 
@@ -944,7 +943,7 @@ app.get('/api/user/simulados/history', checkSupabase, requireAuth, async (req, r
     if (error) throw error;
     res.json({ history: data });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar histÃ³rico de simulados.' });
+    res.status(500).json({ error: 'Erro ao buscar histórico de simulados.' });
   }
 });
 
@@ -999,7 +998,7 @@ app.post('/api/user/essays/save', checkSupabase, requireAuth, async (req, res) =
     if (error) throw error;
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao salvar redaÃ§Ã£o.' });
+    res.status(500).json({ error: 'Erro ao salvar redação.' });
   }
 });
 
@@ -1014,7 +1013,7 @@ app.get('/api/user/essays/history', checkSupabase, requireAuth, async (req, res)
     if (error) throw error;
     res.json({ history: data });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar histÃ³rico de redaÃ§Ãµes.' });
+    res.status(500).json({ error: 'Erro ao buscar histórico de redações.' });
   }
 });
 
@@ -1035,7 +1034,7 @@ app.get('/api/user/ranking', checkSupabase, requireAuth, async (req, res) => {
           email: u.email,
           xp,
           level,
-          avatar: u.email === email ? 'ðŸ‘¤' : 'ðŸ‘®',
+          avatar: u.email === email ? '👤' : '👮',
           isCurrentUser: u.email === email,
         };
       })
@@ -1057,7 +1056,7 @@ app.post('/api/create-checkout-session', checkSupabase, requireAuth, async (req,
     const { plan } = req.body;
 
     if (!plan || !['MONTHLY', 'ANNUAL'].includes(plan)) {
-      return res.status(400).json({ error: 'Plano invÃ¡lido. Use MONTHLY ou ANNUAL.' });
+      return res.status(400).json({ error: 'Plano inválido. Use MONTHLY ou ANNUAL.' });
     }
 
     await ensureUserRow(supabase, email);
@@ -1067,7 +1066,7 @@ app.post('/api/create-checkout-session', checkSupabase, requireAuth, async (req,
       stripe = getStripe();
     } catch {
       return res.status(500).json({
-        error: 'STRIPE_SECRET_KEY nÃ£o configurada no ambiente de produÃ§Ã£o (Vercel).',
+        error: 'STRIPE_SECRET_KEY não configurada no ambiente de produção (Vercel).',
       });
     }
 
@@ -1086,7 +1085,7 @@ app.post('/api/create-checkout-session', checkSupabase, requireAuth, async (req,
     const priceId = prices[plan];
     if (!priceId) {
       return res.status(400).json({
-        error: `ID do preÃ§o Stripe para o plano ${plan} nÃ£o configurado. Defina STRIPE_PRICE_ID_${plan} na Vercel.`,
+        error: `ID do preço Stripe para o plano ${plan} não configurado. Defina STRIPE_PRICE_ID_${plan} na Vercel.`,
       });
     }
 
@@ -1131,26 +1130,26 @@ app.post('/api/ai/questions', checkSupabase, requireAuth, async (req, res) => {
     res.json({ questions });
   } catch (error: any) {
     console.error('AI questions error:', error);
-    res.status(500).json({ error: error.message || 'Erro ao gerar questÃµes.' });
+    res.status(500).json({ error: error.message || 'Erro ao gerar questões.' });
   }
 });
 
 app.post('/api/ai/question', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { subject, topic } = req.body;
-    if (!subject || !topic) return res.status(400).json({ error: 'subject e topic obrigatÃ³rios.' });
+    if (!subject || !topic) return res.status(400).json({ error: 'subject e topic obrigatórios.' });
     const question = await fetchSinglePoliceQuestion(subject, topic);
     res.json({ question });
   } catch (error: any) {
     console.error('AI question error:', error);
-    res.status(500).json({ error: error.message || 'Erro ao gerar questÃ£o.' });
+    res.status(500).json({ error: error.message || 'Erro ao gerar questão.' });
   }
 });
 
 app.post('/api/ai/simulado', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { subject, count = 10 } = req.body;
-    if (!subject) return res.status(400).json({ error: 'subject obrigatÃ³rio.' });
+    if (!subject) return res.status(400).json({ error: 'subject obrigatório.' });
     const questions = await generateQuestionsForSubject(subject, count);
     res.json({ questions });
   } catch (error: any) {
@@ -1162,19 +1161,19 @@ app.post('/api/ai/simulado', checkSupabase, requireAuth, async (req, res) => {
 app.post('/api/ai/essay', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { essay, theme } = req.body;
-    if (!essay || !theme) return res.status(400).json({ error: 'essay e theme obrigatÃ³rios.' });
+    if (!essay || !theme) return res.status(400).json({ error: 'essay e theme obrigatórios.' });
     const feedback = await correctEssayWithAi(essay, theme);
     res.json({ feedback });
   } catch (error: any) {
     console.error('AI essay error:', error);
-    res.status(500).json({ error: error.message || 'Erro ao corrigir redaÃ§Ã£o.' });
+    res.status(500).json({ error: error.message || 'Erro ao corrigir redação.' });
   }
 });
 
 app.post('/api/ai/flashcards', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { subject, count = 10 } = req.body;
-    if (!subject) return res.status(400).json({ error: 'subject obrigatÃ³rio.' });
+    if (!subject) return res.status(400).json({ error: 'subject obrigatório.' });
     const flashcards = await generateFlashcardsBatch(subject, count);
     res.json({ flashcards });
   } catch (error: any) {
@@ -1186,7 +1185,7 @@ app.post('/api/ai/flashcards', checkSupabase, requireAuth, async (req, res) => {
 app.post('/api/ai/mentoria', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { messages = [], userMessage } = req.body;
-    if (!userMessage) return res.status(400).json({ error: 'userMessage obrigatÃ³rio.' });
+    if (!userMessage) return res.status(400).json({ error: 'userMessage obrigatório.' });
     const text = await mentoriaChat(messages, userMessage);
     res.json({ text });
   } catch (error: any) {
@@ -1201,10 +1200,10 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 });
 
 app.all('/api/*', (req, res) => {
-  res.status(404).json({ error: `Rota nÃ£o encontrada: ${req.url}` });
+  res.status(404).json({ error: `Rota não encontrada: ${req.url}` });
 });
 
-// Handler explÃ­cito â€” exportar sÃ³ `app` causa FUNCTION_INVOCATION_FAILED na Vercel.
+// Handler explícito — exportar só `app` causa FUNCTION_INVOCATION_FAILED na Vercel.
 export { app };
 
 export default function handler(req: IncomingMessage, res: ServerResponse) {

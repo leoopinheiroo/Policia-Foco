@@ -134,7 +134,6 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
       if (q1 && validateQuestion(q1)) {
         setQuestions([q1]);
         prefetchNext();
-        prefetchNext();
       } else {
         throw new Error("Não foi possível carregar a questão inicial.");
       }
