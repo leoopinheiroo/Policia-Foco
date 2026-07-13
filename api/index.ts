@@ -23,8 +23,9 @@ type AuthedRequest = express.Request & {
 };
 
 /* ==== Gemini (inlined para bundle Vercel) ==== */
+/** Flash-Lite: maior RPM/throughput para geração contínua de questões. */
 const getGeminiModel = () =>
-  (process.env.GEMINI_MODEL || 'gemini-3.5-flash').trim() || 'gemini-3.5-flash';
+  (process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite').trim() || 'gemini-2.5-flash-lite';
 
 let aiInstance: any = null;
 

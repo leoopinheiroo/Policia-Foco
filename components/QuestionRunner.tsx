@@ -96,16 +96,26 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
 
   const prefetchNext = useCallback(async () => {
     if (prefetchingRef.current) return;
+    // Já tem a próxima pronta
+    if (questionsRef.current.length > currentIndex + 1) return;
+
     prefetchingRef.current = true;
     setIsPrefetching(true);
-    
+
     try {
-      const newQ = await fetchSinglePoliceQuestion(subject, topic);
-      if (newQ && validateQuestion(newQ)) {
-        setQuestions(prev => {
-          if (prev.some(q => q.id === newQ.id)) return prev;
-          return [...prev, newQ];
-        });
+      // Mantém sempre 1 questão à frente da atual
+      let attempts = 0;
+      while (questionsRef.current.length <= currentIndex + 1 && attempts < 3) {
+        attempts += 1;
+        const newQ = await fetchSinglePoliceQuestion(subject, topic);
+        if (!newQ || !validateQuestion(newQ)) break;
+
+        const prev = questionsRef.current;
+        if (prev.some(q => q.id === newQ.id)) continue;
+
+        const nextList = [...prev, newQ];
+        questionsRef.current = nextList;
+        setQuestions(nextList);
       }
     } catch (e) {
       console.error("Falha no prefetch:", e);
@@ -113,11 +123,12 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
       prefetchingRef.current = false;
       setIsPrefetching(false);
     }
-  }, [subject, topic, validateQuestion]);
+  }, [subject, topic, validateQuestion, currentIndex]);
 
   const init = useCallback(async () => {
     setErrorState(null);
     setQuestions([]);
+    questionsRef.current = [];
     setCurrentIndex(0);
     setSelectedOption(null);
     setIsInitialLoading(true);
@@ -125,11 +136,10 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
     if (initialQuestions && initialQuestions.length > 0) {
       const validInitial = initialQuestions.filter(validateQuestion);
       if (validInitial.length > 0) {
+        questionsRef.current = validInitial;
         setQuestions(validInitial);
         setIsInitialLoading(false);
-        if (validInitial.length < 5) {
-          prefetchNext();
-        }
+        // Prefetch dispara via effect quando currentIndex/questions mudam
         return;
       }
     }
@@ -137,8 +147,8 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
     try {
       const q1 = await fetchSinglePoliceQuestion(subject, topic);
       if (q1 && validateQuestion(q1)) {
+        questionsRef.current = [q1];
         setQuestions([q1]);
-        prefetchNext();
       } else {
         throw new Error("Não foi possível carregar a questão inicial.");
       }
@@ -148,17 +158,17 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
     } finally {
       setIsInitialLoading(false);
     }
-  }, [subject, topic, initialQuestions, validateQuestion, prefetchNext]);
+  }, [subject, topic, initialQuestions, validateQuestion]);
 
   useEffect(() => {
     init();
   }, [subject, topic, init]);
 
+  // Sempre que a questão atual muda, garante a próxima já carregada
   useEffect(() => {
-    if (!isInitialLoading && (questions.length - currentIndex) < 3) {
-      prefetchNext();
-    }
-  }, [currentIndex, questions.length, isInitialLoading, prefetchNext]);
+    if (isInitialLoading || errorState) return;
+    prefetchNext();
+  }, [currentIndex, questions.length, isInitialLoading, errorState, prefetchNext]);
 
   useEffect(() => {
     const q = questions[currentIndex];
@@ -177,6 +187,7 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
   const handleNext = async () => {
     if (isAdvancing) return;
 
+    // Caminho rápido: próxima já está no buffer
     if (currentIndex < questionsRef.current.length - 1) {
       goToQuestion(currentIndex + 1);
       return;
@@ -184,7 +195,6 @@ export const QuestionRunner: React.FC<QuestionRunnerProps> = ({
 
     setIsAdvancing(true);
     try {
-      // Se o prefetch já está rodando, espera a fila crescer
       if (prefetchingRef.current) {
         showToast('Preparando a próxima questão...', 'info');
         const startedLen = questionsRef.current.length;
