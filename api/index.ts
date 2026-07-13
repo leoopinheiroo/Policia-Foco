@@ -370,42 +370,75 @@ const fetchSinglePoliceQuestion = async (
   }
 };
 
+const generateQuestionsBatchOnce = async (
+  subject: string,
+  count: number
+): Promise<Question[]> => {
+  const response = await (await getAi()).models.generateContent({
+    model: getGeminiModel(),
+    contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
+      MISSÃO: Gerar EXATAMENTE ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: "${subject}".
+      REGRAS OBRIGATÓRIAS:
+      1. O array JSON deve conter EXATAMENTE ${count} itens (nem mais, nem menos).
+      2. Nível: Muito Difícil. Banca: CEBRASPE ou FGV.
+      3. Cada questão deve ser diferente das demais do lote.
+      ${DETAILED_COMMENTARY_INSTRUCTION}`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: 'ARRAY',
+        items: QUESTION_SCHEMA
+      }
+    }
+  });
+
+  const items = JSON.parse(cleanJson(response.text || '[]'));
+  if (!Array.isArray(items)) return [];
+  return items.map((q: any) => ({
+    ...q,
+    id: `sim-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    origem: 'IA',
+    isAiGenerated: true
+  }));
+};
+
+/** Gera até `count` questões em lotes (máx. 8/chamada) — Gemini raramente entrega lotes grandes completos. */
 const generateQuestionsForSubject = async (
   subject: string,
   count: number
 ): Promise<Question[]> => {
-  const cacheKey = `GS:${subject}:${count}`;
+  const target = Math.max(1, Math.min(Number(count) || 1, 10));
+  const cacheKey = `GS:${subject}:${target}`;
   const cached = getCachedData(cacheKey);
-  if (cached) return cached;
+  if (cached && Array.isArray(cached) && cached.length >= target) {
+    return cached.slice(0, target);
+  }
   if (pendingRequests.has(cacheKey)) return pendingRequests.get(cacheKey)!;
 
-  const request = withRetry(async () => {
-    const response = await (await getAi()).models.generateContent({
-      model: getGeminiModel(),
-      contents: `VOCÊ É UM ARQUITETO DE CONTEÚDO EDUCACIONAL SÊNIOR E ESPECIALISTA EM CONCURSOS POLICIAIS.
-        MISSÃO: Gerar um lote de ${count} questões técnicas inéditas EXCLUSIVAMENTE para a matéria: "${subject}".
-        Nível: Muito Difícil.
-        ${DETAILED_COMMENTARY_INSTRUCTION}`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: 'ARRAY',
-          items: QUESTION_SCHEMA
+  const request = (async () => {
+    const collected: Question[] = [];
+    let attempts = 0;
+    while (collected.length < target && attempts < 4) {
+      attempts += 1;
+      const need = Math.min(8, target - collected.length);
+      try {
+        const batch = await withRetry(() => generateQuestionsBatchOnce(subject, need), 3, 1500);
+        if (!batch.length) continue;
+        for (const q of batch) {
+          if (collected.length >= target) break;
+          const dup = collected.some(c => c.texto && q.texto && c.texto === q.texto);
+          if (!dup) collected.push(q);
         }
+      } catch (e) {
+        console.error('generateQuestionsForSubject batch error:', e);
+        if (collected.length > 0) break;
+        throw e;
       }
-    });
-
-    const items = JSON.parse(cleanJson(response.text || '[]'));
-    const results = items.map((q: any) => ({
-      ...q,
-      id: `sim-${Date.now()}-${Math.random()}`,
-      origem: 'IA',
-      isAiGenerated: true
-    }));
-
-    setCachedData(cacheKey, results);
+    }
+    const results = collected.slice(0, target);
+    if (results.length >= target) setCachedData(cacheKey, results);
     return results;
-  });
+  })();
 
   pendingRequests.set(cacheKey, request);
   try {
@@ -1151,8 +1184,9 @@ app.post('/api/ai/simulado', checkSupabase, requireAuth, async (req, res) => {
   try {
     const { subject, count = 10 } = req.body;
     if (!subject) return res.status(400).json({ error: 'subject obrigatório.' });
-    const questions = await generateQuestionsForSubject(subject, count);
-    res.json({ questions });
+    const safeCount = Math.min(Math.max(1, Number(count) || 10), 10);
+    const questions = await generateQuestionsForSubject(subject, safeCount);
+    res.json({ questions, requested: safeCount, generated: questions.length });
   } catch (error: any) {
     console.error('AI simulado error:', error);
     res.status(500).json({ error: error.message || 'Erro ao gerar simulado.' });

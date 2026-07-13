@@ -16,7 +16,11 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
   const [state, setState] = useState<SimuladoState>('CONFIG');
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [examLength, setExamLength] = useState<60 | 120>(60);
-  const [loadingProgress, setLoadingProgress] = useState<{current: string, count: number}>({ current: '', count: 0 });
+  const [loadingProgress, setLoadingProgress] = useState<{ current: string; count: number; ready: number }>({
+    current: '',
+    count: 0,
+    ready: 0,
+  });
   
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -29,6 +33,32 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
     );
   };
 
+  /** Busca exatamente `needed` questões em lotes de até 8 (API limita a 10/request). */
+  const fetchExactCount = async (
+    subjectName: string,
+    needed: number,
+    onBatch?: (got: number) => void
+  ): Promise<Question[]> => {
+    const out: Question[] = [];
+    let emptyStreak = 0;
+    while (out.length < needed && emptyStreak < 3) {
+      const batchSize = Math.min(8, needed - out.length);
+      const batch = await generateQuestionsForSubject(subjectName, batchSize);
+      if (!batch || batch.length === 0) {
+        emptyStreak += 1;
+        continue;
+      }
+      emptyStreak = 0;
+      for (const q of batch) {
+        if (out.length >= needed) break;
+        const dup = out.some(c => c.texto && q.texto && c.texto === q.texto);
+        if (!dup) out.push(q);
+      }
+      onBatch?.(out.length);
+    }
+    return out;
+  };
+
   const startSimulado = async () => {
     if (selectedSubjects.length === 0) {
       alert("Selecione pelo menos uma matéria para o treinamento.");
@@ -36,35 +66,72 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
     }
 
     setState('LOADING');
+    setLoadingProgress({ current: '', count: 0, ready: 0 });
     
     const subjectsToFetch = SUBJECTS.filter(s => selectedSubjects.includes(s.id));
     const numSubjects = subjectsToFetch.length;
     
-    // Cálculo da distribuição igualitária
     const baseCount = Math.floor(examLength / numSubjects);
     const remainder = examLength % numSubjects;
 
     let pool: Question[] = [];
 
     try {
-      // Fetch sequencial ou em pequenos paralelos para evitar rate limit excessivo
       for (let i = 0; i < numSubjects; i++) {
         const sub = subjectsToFetch[i];
         const countForThisSubject = baseCount + (i < remainder ? 1 : 0);
         
         if (countForThisSubject > 0) {
-          setLoadingProgress({ current: sub.name, count: countForThisSubject });
-          const subQuestions = await generateQuestionsForSubject(sub.name, countForThisSubject);
-          if (subQuestions && subQuestions.length > 0) {
-            pool = [...pool, ...subQuestions];
-          }
+          setLoadingProgress({
+            current: sub.name,
+            count: countForThisSubject,
+            ready: pool.length,
+          });
+          const subQuestions = await fetchExactCount(sub.name, countForThisSubject, (gotInSubject) => {
+            setLoadingProgress({
+              current: sub.name,
+              count: countForThisSubject,
+              ready: pool.length + gotInSubject,
+            });
+          });
+          pool = [...pool, ...subQuestions];
+          setLoadingProgress(prev => ({ ...prev, ready: pool.length }));
         }
       }
 
-      // Embaralhar o pool final para não ficarem todas as matérias juntas
+      // Completa o que faltou redistribuindo entre as matérias
+      let fillGuard = 0;
+      while (pool.length < examLength && fillGuard < examLength) {
+        fillGuard += 1;
+        const missing = examLength - pool.length;
+        const sub = subjectsToFetch[(fillGuard - 1) % numSubjects];
+        setLoadingProgress({
+          current: `Completando: ${sub.name}`,
+          count: missing,
+          ready: pool.length,
+        });
+        const extra = await fetchExactCount(sub.name, Math.min(8, missing));
+        if (!extra.length) break;
+        for (const q of extra) {
+          if (pool.length >= examLength) break;
+          const dup = pool.some(c => c.texto && q.texto && c.texto === q.texto);
+          if (!dup) pool.push(q);
+        }
+      }
+
+      pool = pool.slice(0, examLength);
       pool.sort(() => Math.random() - 0.5);
 
       if (pool.length === 0) throw new Error("Falha na geração: Nenhuma questão foi retornada.");
+      if (pool.length < examLength) {
+        const ok = confirm(
+          `A IA gerou ${pool.length} de ${examLength} questões. Deseja iniciar mesmo assim?`
+        );
+        if (!ok) {
+          setState('CONFIG');
+          return;
+        }
+      }
 
       setQuestions(pool);
       setAnswers({});
@@ -214,12 +281,13 @@ export const Simulados: React.FC<SimuladosProps> = ({ userEmail }) => {
             <p className="text-slate-400 font-bold uppercase text-xs tracking-[0.3em]">Sincronizando com editais PF/PRF</p>
             <p className="text-slate-400 font-bold uppercase text-xs tracking-[0.3em]">IA validando gabaritos técnicos</p>
             <p className="text-yellow-600 font-black uppercase text-xs tracking-[0.3em]">
-              Carregando {loadingProgress.count} itens de {loadingProgress.current}
+              {loadingProgress.ready}/{examLength} — {loadingProgress.current}
+              {loadingProgress.count > 0 ? ` (+${loadingProgress.count})` : ''}
             </p>
             <div className="w-64 h-1.5 bg-slate-200 rounded-full mx-auto overflow-hidden mt-4">
               <div 
                 className="h-full bg-yellow-500 transition-all duration-500" 
-                style={{ width: `${(questions.length / examLength) * 100}%` }}
+                style={{ width: `${Math.min(100, (loadingProgress.ready / examLength) * 100)}%` }}
               ></div>
             </div>
         </div>
