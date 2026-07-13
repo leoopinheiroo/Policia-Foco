@@ -1,6 +1,6 @@
-/** Flash-Lite: maior RPM/throughput para geração contínua de questões. */
+/** Flash-Lite atual (alto volume). 2.5-flash-lite foi descontinuado para contas novas. */
 const getGeminiModel = () =>
-  (process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite').trim() || 'gemini-2.5-flash-lite';
+  (process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite').trim() || 'gemini-3.1-flash-lite';
 
 let aiInstance: any = null;
 
