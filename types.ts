@@ -94,11 +94,7 @@ export interface UserHistory {
     question: Question;
   }>;
   savedQuestions?: string[]; // IDs of questions in the "Dossier"
-  missionProgress?: Record<string, {
-    theoryDone: boolean;
-    exercisesDone: boolean;
-    mastery: number;
-  }>;
+  missionProgress?: Record<string, any>; // por missão (PRF/PF/PC) ou legado flat por matéria
 }
 
 export interface Mission {

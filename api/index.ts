@@ -984,7 +984,40 @@ app.post('/api/user/history/save', checkSupabase, requireAuth, async (req, res) 
     }
 
     if (missionProgress && typeof missionProgress === 'object') {
-      history.missionProgress = { ...history.missionProgress, ...missionProgress };
+      // Merge por missão (PRF/PF/PC) ou formato legado (matéria no root)
+      const missionIds = new Set(['PRF_2025', 'PF_AGENTE', 'PC_SP_INVEST']);
+
+      for (const [key, val] of Object.entries(missionProgress)) {
+        if (!val || typeof val !== 'object') continue;
+        const entry = val as Record<string, unknown>;
+        const looksLikeSubject =
+          'theoryDone' in entry ||
+          'theory' in entry ||
+          'exercisesDone' in entry ||
+          'exercises' in entry ||
+          'mastery' in entry;
+
+        if (missionIds.has(key) && !looksLikeSubject) {
+          // Bucket por missão: merge profundo das matérias
+          const existingBucket = (history.missionProgress[key] && typeof history.missionProgress[key] === 'object')
+            ? { ...history.missionProgress[key] }
+            : {};
+          for (const [subId, subVal] of Object.entries(entry)) {
+            if (!subVal || typeof subVal !== 'object') continue;
+            existingBucket[subId] = {
+              ...(existingBucket[subId] || {}),
+              ...(subVal as object),
+            };
+          }
+          history.missionProgress[key] = existingBucket;
+        } else if (looksLikeSubject) {
+          // Legado flat (sem escopo de missão)
+          history.missionProgress[key] = {
+            ...(history.missionProgress[key] || {}),
+            ...entry,
+          };
+        }
+      }
     }
 
     const { error } = await supabase.from('users').update({ history }).eq('email', email);
