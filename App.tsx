@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ViewState } from './types';
-import { SUBJECTS } from './constants';
+import { SUBJECTS, MOCK_QUESTIONS } from './constants';
 import { QuestionRunner } from './components/QuestionRunner';
 import { QuestionFilter } from './components/QuestionFilter';
 import { EssayCorrection } from './components/EssayCorrection';
@@ -22,12 +22,12 @@ import { Checkout } from './components/Checkout';
 import { Toast, ToastType } from './components/Toast';
 
 import { supabase } from './services/supabase';
-import { apiJson } from './services/apiClient';
 
 const App: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // Estado de autenticação persistente
+  const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('PF_LOGGED') === 'true');
   const [isPaid, setIsPaid] = useState(false);
-  const [userEmail, setUserEmail] = useState('');
+  const [userEmail, setUserEmail] = useState(() => localStorage.getItem('PF_USER_EMAIL') || '');
   const [userName, setUserName] = useState(() => localStorage.getItem('PF_USER_NAME') || 'Operador');
   const [selectedPlan, setSelectedPlan] = useState<'MONTHLY' | 'ANNUAL'>('ANNUAL');
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
@@ -42,164 +42,119 @@ const App: React.FC = () => {
   };
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    // Listen for auth state changes (Hardened)
+    try {
+      const auth = (supabase as any)?.auth;
+      if (!auth) {
+        setIsCheckingStatus(false);
+        return;
+      }
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event: any, session: any) => {
+        if (session?.user) {
+          setIsLoggedIn(true);
+          setUserEmail(session.user.email || '');
+          // Fetch profile name if available
+          supabase.from('users').select('name').eq('email', session.user.email).single()
+            .then(({ data }: any) => {
+              if (data?.name) setUserName(data.name);
+            });
+        } else {
+          setIsLoggedIn(false);
+          setUserEmail('');
+          setIsPaid(false);
+        }
+      });
+
+      return () => subscription?.unsubscribe();
+    } catch (e) {
+      console.error('Supabase Auth Listener Error:', e);
+      setIsCheckingStatus(false);
+    }
+  }, []);
+  
   const [currentView, setCurrentView] = useState<ViewState>('LANDING');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [intensiveSubject, setIntensiveSubject] = useState<string | null>(null);
   const [filteredQuestions, setFilteredQuestions] = useState<any[]>([]);
   const [userHistory, setUserHistory] = useState<any>(null);
 
-  useEffect(() => {
-    localStorage.removeItem('PF_LOGGED');
-    localStorage.removeItem('PF_CRED_P');
-
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('view') === 'reset-password') {
-      setCurrentView('RESET_PASSWORD');
-    }
-
-    let unsub: (() => void) | undefined;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (cancelled) return;
-
-        if (session?.user) {
-          setIsLoggedIn(true);
-          setUserEmail(session.user.email || '');
-          const metaName = session.user.user_metadata?.full_name;
-          if (metaName) setUserName(metaName);
-        } else {
-          setIsLoggedIn(false);
-          setUserEmail('');
-          setIsCheckingStatus(false);
-        }
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, nextSession: any) => {
-          // Evita apagar sessão no evento inicial se getSession já restaurou
-          if (event === 'INITIAL_SESSION') {
-            if (nextSession?.user) {
-              setIsLoggedIn(true);
-              setUserEmail(nextSession.user.email || '');
-            }
-            return;
-          }
-
-          if (nextSession?.user) {
-            setIsLoggedIn(true);
-            setUserEmail(nextSession.user.email || '');
-            const metaName = nextSession.user.user_metadata?.full_name;
-            if (metaName) setUserName(metaName);
-          } else if (event === 'SIGNED_OUT') {
-            setIsLoggedIn(false);
-            setUserEmail('');
-            setIsPaid(false);
-            setUserHistory(null);
-            setCurrentView('LANDING');
-          }
-        });
-        unsub = () => subscription?.unsubscribe();
-      } catch (e) {
-        console.error('Supabase Auth Error:', e);
-        if (!cancelled) setIsCheckingStatus(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      unsub?.();
-    };
-  }, []);
-
-  const fetchUserHistory = async () => {
+  const fetchUserHistory = async (email: string) => {
     try {
-      const data = await apiJson<{ history: any }>('/api/user/history');
+      const res = await fetch(`/api/user/history?email=${encodeURIComponent(email)}`);
+      const data = await res.json();
       setUserHistory(data.history);
     } catch (e) {
       console.error("Erro ao buscar histórico:", e);
     }
   };
 
-  const checkUserStatus = async (opts?: { forceHomeOnActive?: boolean }) => {
+  const checkUserStatus = async (email: string) => {
+    if (!email) {
+      setIsCheckingStatus(false);
+      return;
+    }
     try {
-      const data = await apiJson<{ status: string; name?: string }>('/api/user/status');
-      if (data.name) setUserName(data.name);
+      const response = await fetch(`/api/user/status?email=${encodeURIComponent(email)}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Status check failed:', errorData);
+        // Se o erro for de configuração do banco, podemos mostrar um alerta ou estado específico
+        if (errorData.error && errorData.error.includes('Supabase')) {
+          // Opcional: setar um estado de erro global
+        }
+        return;
+      }
+      const data = await response.json();
       if (data.status === 'active') {
         setIsPaid(true);
-        if (opts?.forceHomeOnActive || ['LOGIN', 'SIGNUP', 'CHECKOUT', 'LANDING'].includes(currentView)) {
+        if (data.name) setUserName(data.name);
+        // Só redireciona para a HOME se o usuário estiver em telas de transição
+        if (currentView === 'LOGIN' || currentView === 'SIGNUP' || currentView === 'CHECKOUT') {
           setCurrentView('HOME');
         }
       } else {
         setIsPaid(false);
-        // Logado sem assinatura: sempre checkout (inclusive após F5 na landing)
-        if (!['LOGIN', 'SIGNUP', 'FORGOT_PASSWORD', 'RESET_PASSWORD'].includes(currentView)) {
-          setCurrentView('CHECKOUT');
-        }
+        // NÃO redirecionamos automaticamente para o CHECKOUT aqui para permitir ver a Landing Page
       }
     } catch (error) {
       console.error('Error checking status:', error);
-      // Se a sessão existe mas o status falhou, ainda assim não jogar na landing
-      setIsPaid(false);
-      setCurrentView('CHECKOUT');
     } finally {
       setIsCheckingStatus(false);
     }
   };
 
   useEffect(() => {
+    // Handle Stripe Success Redirect
     const params = new URLSearchParams(window.location.search);
-    const paymentSuccess = params.get('status') === 'success';
-
-    if (paymentSuccess) {
+    if (params.get('status') === 'success' && params.get('session_id')) {
+      const email = localStorage.getItem('PF_USER_EMAIL');
+      if (email) checkUserStatus(email);
       window.history.replaceState({}, document.title, window.location.pathname);
     }
 
     if (isLoggedIn && userEmail) {
-      // Após retorno do Stripe, tenta algumas vezes (webhook pode atrasar)
-      if (paymentSuccess) {
-        let attempts = 0;
-        const poll = async () => {
-          attempts += 1;
-          await checkUserStatus({ forceHomeOnActive: true });
-          if (attempts < 6) {
-            setTimeout(() => {
-              apiJson<{ status: string }>('/api/user/status')
-                .then((data) => {
-                  if (data.status === 'active') {
-                    setIsPaid(true);
-                    setCurrentView('HOME');
-                    setIsCheckingStatus(false);
-                  } else if (attempts < 6) {
-                    setTimeout(poll, 2000);
-                  }
-                })
-                .catch(() => {
-                  if (attempts < 6) setTimeout(poll, 2000);
-                });
-            }, 2000);
-          }
-        };
-        poll();
-      } else {
-        checkUserStatus({ forceHomeOnActive: true });
-      }
-      fetchUserHistory();
-    } else if (!isLoggedIn) {
+      checkUserStatus(userEmail);
+      fetchUserHistory(userEmail);
+    } else {
       setIsCheckingStatus(false);
     }
   }, [isLoggedIn, userEmail]);
 
   useEffect(() => {
-    if (!isCheckingStatus && isLoggedIn && !isPaid && !['CHECKOUT', 'LOGIN', 'SIGNUP', 'FORGOT_PASSWORD', 'RESET_PASSWORD'].includes(currentView)) {
+    // Bloqueio de acesso para não pagantes
+    if (!isCheckingStatus && isLoggedIn && !isPaid && !['CHECKOUT', 'LOGIN', 'SIGNUP', 'LANDING', 'FORGOT_PASSWORD'].includes(currentView)) {
       setCurrentView('CHECKOUT');
     }
   }, [isLoggedIn, isPaid, currentView, isCheckingStatus]);
 
   useEffect(() => {
-    if (userName) localStorage.setItem('PF_USER_NAME', userName);
-  }, [userName]);
+    localStorage.setItem('PF_LOGGED', isLoggedIn.toString());
+    localStorage.setItem('PF_USER_EMAIL', userEmail);
+    localStorage.setItem('PF_USER_NAME', userName);
+  }, [isLoggedIn, userEmail, userName]);
 
   const activeSubject = useMemo(() => 
     SUBJECTS.find(s => s.id === selectedSubjectId), 
@@ -244,31 +199,32 @@ const App: React.FC = () => {
     await supabase.auth.signOut();
     setIsLoggedIn(false);
     setIsPaid(false);
-    setUserEmail('');
-    setUserHistory(null);
+    localStorage.removeItem('PF_LOGGED');
+    localStorage.removeItem('PF_PAID');
     setCurrentView('LANDING');
   };
 
-  const handleAuthSuccess = async (email: string, name?: string) => {
+  const handleAuthSuccess = (email: string, name?: string) => {
     setIsLoggedIn(true);
     setUserEmail(email);
     if (name) setUserName(name);
-
-    try {
-      const data = await apiJson<{ status: string; name?: string }>('/api/user/status');
-      if (data.name) setUserName(data.name);
-      if (data.status === 'active') {
-        setIsPaid(true);
-        setCurrentView('HOME');
-      } else {
-        setIsPaid(false);
-        setCurrentView('CHECKOUT');
-      }
-      await fetchUserHistory();
-    } catch {
-      setIsPaid(false);
-      setCurrentView('CHECKOUT');
-    }
+    localStorage.setItem('PF_LOGGED', 'true');
+    localStorage.setItem('PF_USER_EMAIL', email);
+    if (name) localStorage.setItem('PF_USER_NAME', name);
+    
+    // Ao logar ou cadastrar, verificamos o status e aí sim decidimos se vai para Checkout ou Home
+    fetch(`/api/user/status?email=${encodeURIComponent(email)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'active') {
+          setIsPaid(true);
+          if (data.name) setUserName(data.name);
+          setCurrentView('HOME');
+        } else {
+          setIsPaid(false);
+          setCurrentView('CHECKOUT');
+        }
+      });
   };
 
   const handleStart = (plan: 'MONTHLY' | 'ANNUAL') => {
@@ -284,22 +240,22 @@ const App: React.FC = () => {
     switch (currentView) {
       case 'HOME':
         return (
-          <div className="space-y-10 sm:space-y-16 animate-fade-in">
-            <header className="bg-gradient-to-br from-slate-950 to-slate-900 rounded-3xl sm:rounded-[4rem] p-6 sm:p-12 md:p-20 text-white shadow-2xl relative overflow-hidden border border-slate-800">
+          <div className="space-y-16 animate-fade-in">
+            <header className="bg-gradient-to-br from-slate-950 to-slate-900 rounded-[4rem] p-12 md:p-20 text-white shadow-2xl relative overflow-hidden border border-slate-800">
                <div className="relative z-10 max-w-4xl">
-                  <div className="inline-flex items-center gap-2 sm:gap-3 bg-yellow-500/10 text-yellow-500 px-4 sm:px-6 py-2 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-0.3em mb-6 sm:mb-10 border border-yellow-500/20">
-                     <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse shrink-0" />
-                     <span className="truncate">TREINAMENTO OPERACIONAL DE ELITE</span>
+                  <div className="inline-flex items-center gap-3 bg-yellow-500/10 text-yellow-500 px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-0.3em mb-10 border border-yellow-500/20">
+                     <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+                     TREINAMENTO OPERACIONAL DE ELITE
                   </div>
-                  <h1 className="text-3xl sm:text-5xl md:text-7xl font-black mb-6 sm:mb-10 tracking-tighter leading-tight">
+                  <h1 className="text-6xl md:text-7xl font-black mb-10 tracking-tighter leading-tight">
                     DOMINE O <span className="text-yellow-500">EDITAL</span>.
                   </h1>
-                  <p className="text-slate-400 text-base sm:text-xl leading-relaxed mb-8 sm:mb-14 max-w-2xl font-light">
+                  <p className="text-slate-400 text-xl leading-relaxed mb-14 max-w-2xl font-light">
                     Bem-vindo, Operador. Todas as 24 disciplinas obrigatórias estão prontas para o seu treinamento infinito.
                   </p>
                   <button 
                       onClick={() => setCurrentView('SUBJECTS')}
-                      className="w-full sm:w-auto bg-yellow-500 text-slate-950 px-8 sm:px-14 py-4 sm:py-7 rounded-2xl sm:rounded-[2rem] font-black text-lg sm:text-2xl hover:bg-yellow-400 shadow-2xl transition-all"
+                      className="bg-yellow-500 text-slate-950 px-14 py-7 rounded-[2rem] font-black text-2xl hover:bg-yellow-400 shadow-2xl transition-all"
                   >
                       ACESSAR DISCIPLINAS →
                   </button>
@@ -308,22 +264,22 @@ const App: React.FC = () => {
             </header>
 
             <section>
-              <div className="flex items-end justify-between mb-6 sm:mb-12">
+              <div className="flex items-end justify-between mb-12">
                 <div>
-                    <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tighter mb-2">Seu Arsenal de Estudo</h2>
-                    <p className="text-slate-400 font-medium text-sm sm:text-base">Selecione uma matéria para iniciar a geração infinita de questões.</p>
+                    <h2 className="text-4xl font-black text-slate-900 tracking-tighter mb-2">Seu Arsenal de Estudo</h2>
+                    <p className="text-slate-400 font-medium">Selecione uma matéria para iniciar a geração infinita de questões.</p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {SUBJECTS.filter(s => s.category === 'BASICAS' || s.category === 'JURIDICAS').slice(0, 12).map(sub => (
                   <button 
                     key={sub.id}
                     onClick={() => handleSubjectClick(sub.id)}
-                    className="bg-white p-5 sm:p-8 rounded-2xl sm:rounded-[2.5rem] shadow-lg border border-slate-100 hover:border-yellow-500 transition-all text-left flex items-center gap-4 sm:gap-6 group min-w-0"
+                    className="bg-white p-8 rounded-[2.5rem] shadow-lg border border-slate-100 hover:border-yellow-500 transition-all text-left flex items-center gap-6 group"
                   >
-                    <span className="text-3xl sm:text-5xl group-hover:scale-110 transition-transform shrink-0">{sub.icon}</span>
-                    <div className="min-w-0">
-                      <h3 className="font-black text-slate-900 text-base sm:text-lg group-hover:text-yellow-600 mb-1 truncate">{sub.name}</h3>
+                    <span className="text-5xl group-hover:scale-110 transition-transform">{sub.icon}</span>
+                    <div>
+                      <h3 className="font-black text-slate-900 text-lg group-hover:text-yellow-600 mb-1">{sub.name}</h3>
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{sub.topics.length} Tópicos</p>
                     </div>
                   </button>
@@ -344,9 +300,9 @@ const App: React.FC = () => {
       case 'SUBJECTS':
         return (
           <div className="animate-fade-in space-y-12">
-            <div className="border-b pb-6 sm:pb-8">
-               <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tighter">Catálogo Completo</h2>
-               <p className="text-slate-400 font-bold uppercase text-[9px] sm:text-[10px] tracking-wider sm:tracking-[0.3em] mt-2">Todas as disciplinas obrigatórias para concursos policiais</p>
+            <div className="border-b pb-8">
+               <h2 className="text-5xl font-black text-slate-900 tracking-tighter">Catálogo Completo</h2>
+               <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.3em] mt-2">Todas as disciplinas obrigatórias para concursos policiais</p>
             </div>
 
             <QuestionFilter onFilter={handleFilterApply} />
@@ -367,31 +323,30 @@ const App: React.FC = () => {
             <button onClick={() => setCurrentView('SUBJECTS')} className="text-slate-400 hover:text-slate-900 mb-10 text-xs font-black uppercase tracking-widest transition flex items-center gap-2">
               ← Voltar ao Catálogo
             </button>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-10 mb-8 sm:mb-16 bg-white p-5 sm:p-12 rounded-3xl sm:rounded-[3.5rem] border border-slate-200 shadow-2xl">
-              <div className="w-16 h-16 sm:w-28 sm:h-28 bg-slate-950 rounded-2xl sm:rounded-[3rem] flex items-center justify-center text-4xl sm:text-7xl shadow-2xl shrink-0">
+            <div className="flex items-center gap-10 mb-16 bg-white p-12 rounded-[3.5rem] border border-slate-200 shadow-2xl">
+              <div className="w-28 h-28 bg-slate-950 rounded-[3rem] flex items-center justify-center text-7xl shadow-2xl">
                 {activeSubject.icon}
               </div>
-              <div className="min-w-0">
-                 <p className="text-[10px] font-black text-yellow-600 uppercase tracking-[0.4em] mb-2 sm:mb-4">Módulos de Aprendizado</p>
-                 <h2 className="text-2xl sm:text-5xl md:text-6xl font-black text-slate-900 tracking-tighter leading-tight sm:leading-none break-words">{activeSubject.name}</h2>
+              <div>
+                 <p className="text-[10px] font-black text-yellow-600 uppercase tracking-[0.4em] mb-4">Módulos de Aprendizado</p>
+                 <h2 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tighter leading-none">{activeSubject.name}</h2>
               </div>
             </div>
             
-            <div className="bg-white rounded-3xl sm:rounded-[3.5rem] shadow-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+            <div className="bg-white rounded-[3.5rem] shadow-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
               {activeSubject.topics.map((topic, idx) => (
                 <button 
                   key={idx}
                   onClick={() => handleTopicClick(topic)}
-                  className="w-full text-left p-5 sm:p-12 hover:bg-slate-50 transition-all flex justify-between items-center gap-3 group"
+                  className="w-full text-left p-12 hover:bg-slate-50 transition-all flex justify-between items-center group"
                 >
-                  <div className="flex items-center gap-4 sm:gap-10 min-w-0">
-                      <span className="text-slate-200 font-black text-2xl sm:text-6xl group-hover:text-yellow-500 transition-colors shrink-0">{String(idx + 1).padStart(2, '0')}</span>
-                      <span className="font-black text-slate-800 text-base sm:text-3xl tracking-tighter break-words">{topic}</span>
+                  <div className="flex items-center gap-10">
+                      <span className="text-slate-200 font-black text-6xl group-hover:text-yellow-500 transition-colors">{String(idx + 1).padStart(2, '0')}</span>
+                      <span className="font-black text-slate-800 text-3xl tracking-tighter">{topic}</span>
                   </div>
-                  <div className="hidden sm:block bg-slate-950 text-white text-xs px-10 py-4 rounded-2xl font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all shadow-2xl translate-x-10 group-hover:translate-x-0 shrink-0">
+                  <div className="bg-slate-950 text-white text-xs px-10 py-4 rounded-2xl font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all shadow-2xl translate-x-10 group-hover:translate-x-0">
                     ESTUDAR AGORA →
                   </div>
-                  <span className="sm:hidden text-slate-400 font-black text-lg shrink-0">→</span>
                 </button>
               ))}
             </div>
@@ -406,8 +361,6 @@ const App: React.FC = () => {
             subject={activeSubject?.name || 'Filtro'}
             topic={selectedTopic}
             userEmail={userEmail}
-            userHistory={userHistory}
-            onHistoryChange={fetchUserHistory}
             showToast={showToast}
             onBack={() => {
               setCurrentView(activeSubject ? 'TOPICS' : 'SUBJECTS');
@@ -452,12 +405,7 @@ const App: React.FC = () => {
       case 'SIMULADOS': return <Simulados userEmail={userEmail} />;
       case 'REDACAO': return <EssayCorrection userEmail={userEmail} />;
       case 'MENTORIA': return <MentoriaIA />;
-      case 'MISSION_CONTROL': return (
-        <MissionControl
-          userHistory={userHistory}
-          onProgressSaved={fetchUserHistory}
-        />
-      );
+      case 'MISSION_CONTROL': return <MissionControl />;
       case 'RANKING': return <Ranking userName={userName} />;
       case 'DOSSIER':
         return (
@@ -500,20 +448,20 @@ const App: React.FC = () => {
           isOpen={sidebarOpen}
           setIsOpen={setSidebarOpen}
           onLogout={handleLogout}
-          userType="RECRUTA"
+          userType={userEmail === 'leonardo.pinheiros5366@gmail.com' ? 'ELITE' : 'RECRUTA'}
           userName={userName}
         />
-        <main className="flex-1 md:ml-64 flex flex-col min-h-screen min-w-0 overflow-x-hidden transition-all">
-          <div className="md:hidden bg-slate-950 text-white px-4 py-4 flex items-center justify-between sticky top-0 z-40 shadow-2xl border-b border-white/5">
-             <button onClick={() => setSidebarOpen(true)} className="p-2.5 border border-white/10 rounded-xl bg-white/5 shrink-0" aria-label="Abrir menu">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+        <main className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all">
+          <div className="md:hidden bg-slate-950 text-white p-6 flex items-center justify-between sticky top-0 z-40 shadow-2xl border-b border-white/5">
+             <button onClick={() => setSidebarOpen(true)} className="p-3 border border-white/10 rounded-2xl bg-white/5">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
              </button>
-             <span className="font-black text-base sm:text-xl text-yellow-500 tracking-tighter uppercase italic truncate px-2">Aprova Elite IA</span>
-             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-yellow-500 text-slate-950 flex items-center justify-center font-black text-xs sm:text-sm shadow-lg shadow-yellow-500/20 shrink-0">
+             <span className="font-black text-xl text-yellow-500 tracking-tighter uppercase italic">Aprova Elite IA</span>
+             <div className="w-10 h-10 rounded-xl bg-yellow-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-lg shadow-yellow-500/20">
                {userName.substring(0, 2).toUpperCase()}
              </div>
           </div>
-          <div className="flex-1 px-4 py-5 sm:px-6 sm:py-8 md:p-16 max-w-[1800px] mx-auto w-full min-w-0">
+          <div className="flex-1 p-6 md:p-16 max-w-[1800px] mx-auto w-full">
             {renderPlatformContent()}
           </div>
 
@@ -540,20 +488,10 @@ const App: React.FC = () => {
     );
   }
 
-  // Logado sem plano: nunca voltar para a landing no F5
-  if (isLoggedIn && !isPaid) {
-    if (currentView === 'LOGIN') return <Auth mode="LOGIN" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
-    if (currentView === 'SIGNUP') return <Auth mode="SIGNUP" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
-    if (currentView === 'FORGOT_PASSWORD') return <Auth mode="FORGOT_PASSWORD" onAuth={() => {}} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => {}} onSuccess={() => {}} onBack={() => setCurrentView('LOGIN')} />;
-    if (currentView === 'RESET_PASSWORD') return <Auth mode="RESET_PASSWORD" onAuth={() => {}} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => {}} onSuccess={() => {}} onBack={() => setCurrentView('LOGIN')} />;
-    return <Checkout initialPlan={selectedPlan} onPaymentComplete={() => { setIsPaid(true); setCurrentView('HOME'); }} onBack={() => { supabase.auth.signOut(); setIsLoggedIn(false); setCurrentView('LANDING'); }} />;
-  }
-
   if (currentView === 'LANDING') return <LandingPage onStart={handleStart} onLogin={() => setCurrentView('LOGIN')} />;
   if (currentView === 'LOGIN') return <Auth mode="LOGIN" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
   if (currentView === 'SIGNUP') return <Auth mode="SIGNUP" onAuth={() => setIsLoggedIn(true)} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => setCurrentView('FORGOT_PASSWORD')} onSuccess={handleAuthSuccess} onBack={() => setCurrentView('LANDING')} />;
   if (currentView === 'FORGOT_PASSWORD') return <Auth mode="FORGOT_PASSWORD" onAuth={() => {}} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => {}} onSuccess={() => {}} onBack={() => setCurrentView('LOGIN')} />;
-  if (currentView === 'RESET_PASSWORD') return <Auth mode="RESET_PASSWORD" onAuth={() => {}} onGoLogin={() => setCurrentView('LOGIN')} onGoSignup={() => setCurrentView('SIGNUP')} onGoForgot={() => {}} onSuccess={() => {}} onBack={() => setCurrentView('LOGIN')} />;
   if (currentView === 'CHECKOUT') return <Checkout initialPlan={selectedPlan} onPaymentComplete={() => { setIsPaid(true); setCurrentView('HOME'); }} onBack={() => setCurrentView('LANDING')} />;
 
   // Fallback para evitar tela branca se o estado ficar inconsistente
@@ -561,14 +499,14 @@ const App: React.FC = () => {
 };
 
 // Componente de Erro para evitar tela branca total
-class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
-  state: { hasError: boolean; error: Error | null } = { hasError: false, error: null };
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: any}> {
+  state = { hasError: false, error: null };
 
-  static getDerivedStateFromError(error: Error) {
+  static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: any, errorInfo: any) {
     console.error("ErrorBoundary caught an error", error, errorInfo);
   }
 
@@ -601,19 +539,19 @@ const AppWithErrorBoundary = () => (
 );
 
 const SubjectSection = ({ title, items, onSubjectClick }: any) => (
-  <div className="space-y-4 sm:space-y-8">
-     <h3 className="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-wider sm:tracking-[0.4em] px-1 sm:px-2">{title}</h3>
-     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-6 md:gap-8">
+  <div className="space-y-8">
+     <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.4em] px-2">{title}</h3>
+     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8">
         {items.map((sub: any) => (
           <button 
             key={sub.id}
             onClick={() => onSubjectClick(sub.id)}
-            className="bg-white p-4 sm:p-8 rounded-2xl sm:rounded-[3rem] shadow-lg border border-slate-100 hover:border-yellow-500 transition-all flex flex-col items-center text-center gap-3 sm:gap-5 group min-w-0"
+            className="bg-white p-8 rounded-[3rem] shadow-lg border border-slate-100 hover:border-yellow-500 transition-all flex flex-col items-center text-center gap-5 group"
           >
-            <div className="w-14 h-14 sm:w-20 sm:h-20 bg-slate-50 rounded-xl sm:rounded-[2rem] flex items-center justify-center text-3xl sm:text-5xl group-hover:bg-yellow-50 transition-all shrink-0">
+            <div className="w-20 h-20 bg-slate-50 rounded-[2rem] flex items-center justify-center text-5xl group-hover:bg-yellow-50 transition-all">
               {sub.icon}
             </div>
-            <h3 className="font-black text-slate-900 text-[9px] sm:text-[10px] uppercase tracking-tight leading-tight break-words w-full">{sub.name}</h3>
+            <h3 className="font-black text-slate-900 text-[10px] uppercase tracking-tight leading-tight">{sub.name}</h3>
           </button>
         ))}
      </div>

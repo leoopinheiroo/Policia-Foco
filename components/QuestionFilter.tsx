@@ -65,9 +65,6 @@ export const QuestionFilter: React.FC<QuestionFilterProps> = ({ onFilter }) => {
               </button>
             ))}
           </div>
-          <p className="mt-3 text-[10px] text-slate-400 font-medium">
-            Os filtros de status orientam a IA com base no seu histórico (ex.: ERREI reforça pontos fracos). Não há banco estático de questões.
-          </p>
         </div>
 
         {/* Estilo de Pergunta */}

@@ -83,14 +83,14 @@ export const GeniusIA: React.FC<GeniusIAProps> = ({ userHistory, onStartIntensiv
   return (
     <div className="space-y-12 animate-in fade-in duration-700">
       {/* Header / Diagnostic */}
-      <header className="bg-slate-950 rounded-3xl sm:rounded-[4rem] p-6 sm:p-12 md:p-16 text-white relative overflow-hidden border border-white/5 shadow-2xl">
+      <header className="bg-slate-950 rounded-[4rem] p-12 md:p-16 text-white relative overflow-hidden border border-white/5 shadow-2xl">
         <div className="relative z-10">
           <div className="inline-flex items-center gap-3 bg-yellow-500/10 text-yellow-500 px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest mb-8 border border-yellow-500/20">
             <Brain className="w-4 h-4" />
             DIAGNÓSTICO GENIUS IA
           </div>
           
-          <h2 className="text-3xl sm:text-5xl md:text-6xl font-black mb-6 sm:mb-8 tracking-tighter leading-tight">
+          <h2 className="text-5xl md:text-6xl font-black mb-8 tracking-tighter leading-tight">
             Seu ponto fraco é <span className="text-yellow-500">{analysis.weakTopic ? analysis.weakTopic.name : analysis.weakSubject.name}</span>.
           </h2>
           

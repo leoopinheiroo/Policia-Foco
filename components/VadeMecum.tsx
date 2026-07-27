@@ -23,9 +23,9 @@ export const VadeMecum: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto pb-20 animate-fade-in">
       {/* Header Profissional */}
-      <div className="bg-slate-900 rounded-3xl sm:rounded-[3rem] p-6 sm:p-12 md:p-16 text-white mb-8 sm:mb-12 shadow-2xl relative overflow-hidden border border-slate-800">
+      <div className="bg-slate-900 rounded-[3rem] p-12 md:p-16 text-white mb-12 shadow-2xl relative overflow-hidden border border-slate-800">
         <div className="relative z-10">
-          <h2 className="text-2xl sm:text-4xl md:text-6xl font-black tracking-tighter mb-4 flex items-center gap-3 sm:gap-4 flex-wrap">
+          <h2 className="text-4xl md:text-6xl font-black tracking-tighter mb-4 flex items-center gap-4">
             <span className="text-yellow-500">⚖️</span> Vade Mecum Digital
           </h2>
           <p className="text-slate-400 text-lg md:text-xl font-light max-w-2xl leading-relaxed">
@@ -98,7 +98,7 @@ export const VadeMecum: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div className="bg-white rounded-3xl sm:rounded-[4rem] p-10 sm:p-24 text-center border-4 border-dashed border-slate-100">
+        <div className="bg-white rounded-[4rem] p-24 text-center border-4 border-dashed border-slate-100">
           <div className="text-6xl mb-6 opacity-20">📖</div>
           <h3 className="text-2xl font-bold text-slate-900 mb-2">Nenhuma lei encontrada</h3>
           <p className="text-slate-400 font-medium">Tente ajustar sua busca ou mudar a categoria selecionada.</p>

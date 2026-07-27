@@ -1,12 +1,18 @@
 
 import React, { useState } from 'react';
-import { apiJson } from '../services/apiClient';
+import { loadStripe } from '@stripe/stripe-js';
 
 interface CheckoutProps {
   initialPlan: 'MONTHLY' | 'ANNUAL';
   onPaymentComplete: () => void;
   onBack: () => void;
 }
+
+const stripePromise = loadStripe(
+  (import.meta as any).env.VITE_STRIPE_PUBLISHABLE_KEY || 
+  (import.meta as any).env.STRIPE_PUBLISHABLE_KEY || 
+  ''
+);
 
 export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComplete, onBack }) => {
   const [step, setStep] = useState<'DETAILS' | 'PROCESSING'>('DETAILS');
@@ -25,28 +31,40 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
     if (selectedMethod === 'PIX') {
       setStep('DETAILS');
       setLoading(false);
+      // Aqui poderíamos abrir um modal ou apenas deixar as instruções na tela
       return;
     }
 
     try {
-      const data = await apiJson<{ url?: string; error?: string }>('/api/create-checkout-session', {
+      const email = localStorage.getItem('PF_USER_EMAIL');
+      if (!email) throw new Error('Email do usuário não encontrado. Faça login novamente.');
+
+      const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           plan: selectedPlan,
-          method: selectedMethod
+          email: email,
+          method: selectedMethod // Enviamos o método preferido
         }),
       });
 
-      if (data.url) {
+      const data = await response.json();
+
+      if (response.ok && data.url) {
         window.location.href = data.url;
       } else {
-        throw new Error(data.error || 'Falha ao iniciar sessão de pagamento.');
+        const msg = data.error || 'Falha ao iniciar sessão de pagamento.';
+        setErrorMessage(msg);
+        throw new Error(msg);
       }
     } catch (error: any) {
       console.error('Erro no checkout:', error);
       setStep('DETAILS');
       setLoading(false);
-      setErrorMessage(error.message);
+      if (!errorMessage) setErrorMessage(error.message);
     }
   };
 
@@ -69,7 +87,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-center p-6 text-white">
          <div className="w-24 h-24 border-8 border-white/5 border-t-yellow-500 rounded-full animate-spin mb-10"></div>
-         <h2 className="text-2xl sm:text-4xl font-black tracking-tighter mb-4">VERIFICANDO PAGAMENTO</h2>
+         <h2 className="text-4xl font-black tracking-tighter mb-4">VERIFICANDO PAGAMENTO</h2>
          <p className="text-slate-400 max-w-md font-medium">Estamos processando sua transação com segurança. Não feche esta janela.</p>
          <div className="mt-10 flex gap-4">
             <div className="px-4 py-2 bg-white/5 rounded-xl text-[10px] font-black uppercase text-slate-500 border border-white/5">VISA/MC SECURE</div>
@@ -85,7 +103,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
           
           {/* Order Summary */}
           <div className="flex-1 lg:order-2">
-             <div className="bg-white p-5 sm:p-8 rounded-3xl sm:rounded-[3rem] shadow-xl border border-slate-200 lg:sticky lg:top-12">
+             <div className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-200 sticky top-12">
                 <div className="flex justify-between items-start mb-8">
                    <h2 className="text-2xl font-black tracking-tighter">Resumo da Ordem</h2>
                    <button 
@@ -136,7 +154,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
              >
                ← Voltar ao Início
              </button>
-             <h2 className="text-2xl sm:text-4xl font-black tracking-tighter mb-6 sm:mb-10">Finalizar Assinatura</h2>
+             <h2 className="text-4xl font-black tracking-tighter mb-10">Finalizar Assinatura</h2>
              
              {/* Plan Selection UI */}
              <div className="mb-12">
@@ -195,7 +213,7 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                       <h3 className="text-xl font-black tracking-tight text-yellow-900 uppercase">Pagamento via PIX</h3>
                     </div>
                     <p className="text-sm text-yellow-800 font-bold mb-6 leading-relaxed">
-                      PIX é liberação manual: transfira o valor, envie o comprovante e aguarde a confirmação. O botão abaixo só libera o acesso depois que o status for marcado como ativo.
+                      Transfira o valor exato para a chave abaixo e envie o comprovante para liberação imediata.
                     </p>
                     <div className="flex flex-col md:flex-row gap-6 mb-6">
                       <div className="flex-1 bg-white p-6 rounded-2xl border-2 border-yellow-300 group cursor-pointer active:scale-95 transition-transform" onClick={() => {
@@ -213,12 +231,16 @@ export const Checkout: React.FC<CheckoutProps> = ({ initialPlan, onPaymentComple
                             e.stopPropagation();
                             setLoading(true);
                             try {
-                              const data = await apiJson<{ status: string }>('/api/user/status');
-                              if (data.status === 'active') {
-                                alert("Pagamento confirmado! Acesso liberado.");
-                                onPaymentComplete();
-                              } else {
-                                alert("Ainda pendente. Após enviar o comprovante, aguarde a liberação manual.");
+                              const email = localStorage.getItem('PF_USER_EMAIL');
+                              if (email) {
+                                const res = await fetch(`/api/user/status?email=${encodeURIComponent(email)}`);
+                                const data = await res.json();
+                                if (data.status === 'active') {
+                                  alert("Pagamento confirmado! Acesso liberado.");
+                                  onPaymentComplete();
+                                } else {
+                                  alert("Pagamento ainda não detectado. Se já pagou, aguarde alguns minutos ou envie o comprovante.");
+                                }
                               }
                             } catch (err) {
                               console.error(err);

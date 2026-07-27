@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { correctEssayWithAi } from '../services/geminiService';
 import { EssayFeedback } from '../types';
-import { apiFetch } from '../services/apiClient';
-import DOMPurify from 'dompurify';
 
 const COMMON_THEMES = [
   "O papel da segurança pública na preservação da democracia",
@@ -42,9 +40,11 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
         
         // Salvar no Supabase
         try {
-          await apiFetch('/api/user/essays/save', {
+          await fetch('/api/user/essays/save', {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              email: userEmail,
               theme: theme,
               content: essay,
               correction_json: result,
@@ -66,7 +66,7 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
   };
 
   return (
-    <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8 min-h-0 lg:h-[calc(100vh-140px)]">
+    <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 h-[calc(100vh-140px)]">
       {/* Input Area */}
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200 flex flex-col h-full overflow-hidden">
         <div className="p-5 bg-slate-50 border-b border-slate-200 space-y-4">
@@ -100,7 +100,7 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
           placeholder="Comece a escrever sua redação aqui. Foque na estrutura dissertativa-argumentativa (Introdução, Desenvolvimento, Conclusão)..."
           className="flex-1 w-full p-6 text-slate-700 leading-relaxed outline-none resize-none focus:bg-slate-50 transition font-serif text-lg"
         />
-        <div className="p-4 sm:p-5 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-slate-50">
+        <div className="p-5 border-t border-slate-200 flex justify-between items-center bg-slate-50">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{essay.length} caracteres</span>
           <button
             onClick={handleCorrection}
@@ -132,49 +132,49 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
         ) : (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
              {/* Header Score */}
-             <div className="bg-slate-900 text-white p-5 sm:p-8 pb-10 sm:pb-12 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-6 sm:p-10 opacity-10 pointer-events-none">
+             <div className="bg-slate-900 text-white p-8 pb-12 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-10 opacity-10">
                     <svg width="150" height="150" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                 </div>
-                <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="min-w-0">
-                        <h2 className="text-2xl sm:text-3xl font-bold text-yellow-400 mb-1">Feedback Oficial</h2>
-                        <p className="text-slate-400 text-xs sm:text-sm uppercase tracking-widest">Baseado na banca examinadora</p>
+                <div className="relative z-10 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-3xl font-bold text-yellow-400 mb-1">Feedback Oficial</h2>
+                        <p className="text-slate-400 text-sm uppercase tracking-widest">Baseado na banca examinadora</p>
                     </div>
-                    <div className="flex flex-col items-start sm:items-center shrink-0">
+                    <div className="flex flex-col items-center">
                         <div className={`
-                            text-4xl sm:text-5xl font-black mb-1
+                            text-5xl font-black mb-1
                             ${feedback.score >= 80 ? 'text-green-400' : feedback.score >= 60 ? 'text-yellow-400' : 'text-red-400'}
                         `}>
                             {feedback.score.toFixed(1)}
                         </div>
-                        <span className="text-[10px] sm:text-xs bg-white/10 px-3 py-1 rounded-full uppercase tracking-widest font-bold">Nota Final / 100</span>
+                        <span className="text-xs bg-white/10 px-3 py-1 rounded-full uppercase tracking-widest font-bold">Nota Final / 100</span>
                     </div>
                 </div>
 
                 {/* Detailed Scores Breakdown */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 mt-6 sm:mt-8">
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-3 sm:p-4 text-center">
-                        <div className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Estrutura</div>
-                        <div className="text-base sm:text-xl font-black text-white">{feedback.detailedScores.estrutura}/25</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Estrutura</div>
+                        <div className="text-xl font-black text-white">{feedback.detailedScores.estrutura}/25</div>
                     </div>
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-3 sm:p-4 text-center">
-                        <div className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Argumentação</div>
-                        <div className="text-base sm:text-xl font-black text-white">{feedback.detailedScores.argumentacao}/25</div>
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Argumentação</div>
+                        <div className="text-xl font-black text-white">{feedback.detailedScores.argumentacao}/25</div>
                     </div>
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-3 sm:p-4 text-center">
-                        <div className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Coesão</div>
-                        <div className="text-base sm:text-xl font-black text-white">{feedback.detailedScores.coesao}/25</div>
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Coesão</div>
+                        <div className="text-xl font-black text-white">{feedback.detailedScores.coesao}/25</div>
                     </div>
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-3 sm:p-4 text-center">
-                        <div className="text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Gramática</div>
-                        <div className="text-base sm:text-xl font-black text-white">{feedback.detailedScores.gramatica}/25</div>
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-center">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Gramática</div>
+                        <div className="text-xl font-black text-white">{feedback.detailedScores.gramatica}/25</div>
                     </div>
                 </div>
              </div>
 
              {/* Content */}
-             <div className="p-4 sm:p-8 -mt-6">
+             <div className="p-8 -mt-6">
                 
                 {/* Recommendation Card */}
                 <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200 mb-8 relative z-20">
@@ -191,7 +191,7 @@ export const EssayCorrection: React.FC<EssayCorrectionProps> = ({ userEmail }) =
                    </h3>
                    <div 
                      className="text-slate-800 leading-loose text-lg font-serif whitespace-pre-wrap essay-marked-content"
-                     dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(feedback.markedEssay || '') }}
+                     dangerouslySetInnerHTML={{ __html: feedback.markedEssay }}
                    />
                    <style>{`
                      .essay-marked-content u {
