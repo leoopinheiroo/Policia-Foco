@@ -224,6 +224,11 @@ const App: React.FC = () => {
           setIsPaid(false);
           setCurrentView('CHECKOUT');
         }
+      })
+      .catch(err => {
+        console.warn('[handleAuthSuccess] Status check fallback to CHECKOUT:', err);
+        setIsPaid(false);
+        setCurrentView('CHECKOUT');
       });
   };
 

@@ -474,64 +474,126 @@ app.get('/api/config', (req, res) => {
       
       if (devEmails.includes(email)) {
         console.log(`[REGISTER] Registro/Atualização de desenvolvedor para: ${email}`);
-        const { data: devUser } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', email)
-          .single();
+        try {
+          const { data: devUser } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', email)
+            .single();
 
-        if (!devUser) {
-          await supabase.from('users').insert([{
-            email,
-            password,
-            name: name || 'Leonardo (Dev)',
-            subscription_status: 'active',
-            created_at: new Date().toISOString(),
-            history: { answeredQuestions: {} }
-          }]);
-        } else {
-          await supabase.from('users').update({
-            password,
-            subscription_status: 'active',
-            name: name || devUser.name || 'Leonardo (Dev)'
-          }).eq('email', email);
+          if (!devUser) {
+            await supabase.from('users').insert([{
+              email,
+              password,
+              name: name || 'Leonardo (Dev)',
+              subscription_status: 'active',
+              created_at: new Date().toISOString(),
+              history: { answeredQuestions: {} }
+            }]);
+          } else {
+            await supabase.from('users').update({
+              password,
+              subscription_status: 'active',
+              name: name || devUser.name || 'Leonardo (Dev)'
+            }).eq('email', email);
+          }
+        } catch (e) {
+          console.warn('[REGISTER] Dev registration Supabase update error:', e);
         }
+
+        // Salva também no banco local
+        const localUsers = readDb();
+        const existingIdx = localUsers.findIndex((u: any) => u.email === email);
+        const devRec = {
+          email,
+          password,
+          name: name || 'Leonardo (Dev)',
+          subscription_status: 'active',
+          created_at: new Date().toISOString(),
+          history: { answeredQuestions: {} }
+        };
+        if (existingIdx !== -1) localUsers[existingIdx] = devRec;
+        else localUsers.push(devRec);
+        writeDb(localUsers);
 
         return res.json({ success: true, email, status: 'active', name: name || 'Leonardo (Dev)' });
       }
       
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single();
+      // 1. Verificar se usuário já existe (Supabase ou Local)
+      let alreadyExists = false;
+      try {
+        const { data: existingUser } = await supabase
+          .from('users')
+          .select('email')
+          .eq('email', email)
+          .single();
 
-      if (existingUser) {
-        console.log(`[REGISTER] Operador ${email} já existe na tabela users.`);
+        if (existingUser) {
+          alreadyExists = true;
+        }
+      } catch (checkErr) {
+        console.warn('[REGISTER] Supabase check query:', checkErr);
+      }
+
+      if (!alreadyExists) {
+        const localUsers = readDb();
+        if (localUsers.some((u: any) => u.email === email)) {
+          alreadyExists = true;
+        }
+      }
+
+      if (alreadyExists) {
+        console.log(`[REGISTER] Operador ${email} já existe.`);
         return res.status(400).json({ 
           error: 'ESTE E-MAIL JÁ ESTÁ CADASTRADO. FAÇA LOGIN OU RECUPERE SUA SENHA.',
           alreadyRegistered: true 
         });
       }
 
-      const { error: insertError } = await supabase
-        .from('users')
-        .insert([{ 
-          email, 
-          password, 
-          name: name || 'Operador', 
-          subscription_status: 'inactive', 
-          created_at: new Date().toISOString(),
-          history: { answeredQuestions: {} }
-        }]);
+      const newUserRecord = { 
+        email, 
+        password, 
+        name: name || 'Operador', 
+        subscription_status: 'inactive', 
+        created_at: new Date().toISOString(),
+        history: { answeredQuestions: {} }
+      };
 
-      if (insertError) {
-        console.error('[REGISTER] Insert error:', insertError);
-        throw insertError;
+      // 2. Gravar no Supabase se disponível
+      try {
+        await supabase
+          .from('users')
+          .insert([newUserRecord]);
+      } catch (insertErr) {
+        console.warn('[REGISTER] Supabase insert warning, saving to local database:', insertErr);
       }
 
-      console.log(`[REGISTER] Novo operador criado: ${email}`);
-      res.json({ success: true, email, status: 'pending' });
+      // 3. Gravar no Banco Local (Garante persistência mesmo em instabilidade de rede externa)
+      const localUsers = readDb();
+      const existingIdx = localUsers.findIndex((u: any) => u.email === email);
+      if (existingIdx !== -1) {
+        localUsers[existingIdx] = newUserRecord;
+      } else {
+        localUsers.push(newUserRecord);
+      }
+      writeDb(localUsers);
+
+      // 4. Opcional: Criar usuário no Supabase Auth no servidor (com bypass de confirmação)
+      try {
+        if (supabase?.auth?.admin?.createUser) {
+          await supabase.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true,
+            user_metadata: { full_name: name || 'Operador' }
+          });
+        }
+      } catch (authCreateErr) {
+        console.log('[REGISTER] Supabase Auth Admin createUser notice:', authCreateErr);
+      }
+
+      console.log(`[REGISTER] Novo operador criado com sucesso: ${email}`);
+      res.json({ success: true, email, status: 'pending', name: name || 'Operador' });
     } catch (error: any) {
       console.error('Register error:', error);
       res.status(500).json({ error: `Erro no servidor ao registrar: ${error.message || 'Erro desconhecido'}` });
@@ -545,66 +607,50 @@ app.get('/api/config', (req, res) => {
       const email = rawEmail?.trim().toLowerCase();
       const password = rawPassword?.trim();
 
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Informe e-mail e senha.' });
+      }
+
       console.log(`[LOGIN] Tentativa de login para: ${email}`);
 
       // Privilégio de Desenvolvedor / Admin
       const devEmails = ['leonardo.pinheiros@hotmail.com', 'leonardo.pinheiros5366@gmail.com'];
       if (devEmails.includes(email)) {
         console.log(`[LOGIN] Acesso de desenvolvedor/admin confirmado para: ${email}`);
-        const { data: devUser, error: fetchDevError } = await supabase
+        return res.json({ success: true, email, status: 'active', name: 'Leonardo (Dev)' });
+      }
+
+      // 1. Busca no Supabase
+      let user: any = null;
+      try {
+        const { data: dbUser, error } = await supabase
           .from('users')
           .select('*')
           .eq('email', email)
           .single();
 
-        if (fetchDevError || !devUser) {
-          console.log(`[LOGIN] Criando registro de desenvolvedor para: ${email}`);
-          await supabase
-            .from('users')
-            .insert([{
-              email,
-              password: password || 'leo5366.Leo',
-              name: 'Leonardo (Dev)',
-              subscription_status: 'active',
-              created_at: new Date().toISOString(),
-              history: { answeredQuestions: {} }
-            }]);
-        } else {
-          // Atualiza a senha fornecida e garante status ativo
-          await supabase
-            .from('users')
-            .update({ 
-              password: password || devUser.password || 'leo5366.Leo',
-              subscription_status: 'active' 
-            })
-            .eq('email', email);
+        if (!error && dbUser) {
+          user = dbUser;
         }
-        
-        return res.json({ success: true, email, status: 'active', name: 'Leonardo (Dev)' });
+      } catch (dbErr) {
+        console.warn('[LOGIN] Supabase query notice:', dbErr);
       }
 
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single();
-
-      if (error) {
-        console.error('[LOGIN] Erro ao buscar usuário:', error);
-        if (error.code === 'PGRST116') {
-          return res.status(401).json({ error: 'Operador não encontrado. Verifique se você já criou sua conta.' });
-        }
-        if (error.message?.includes('relation "users" does not exist')) {
-          return res.status(500).json({ error: 'ERRO CRÍTICO: A tabela "users" não foi criada no Supabase. Por favor, execute o script SQL de configuração.' });
-        }
-        throw error;
+      // 2. Se não encontrou no Supabase, busca no banco local
+      if (!user) {
+        const localUsers = readDb();
+        user = localUsers.find((u: any) => u.email === email);
       }
 
-      if (!user || user.password !== password) {
-        return res.status(401).json({ error: 'Credenciais inválidas.' });
+      if (!user) {
+        return res.status(401).json({ error: 'Operador não encontrado. Verifique se você já criou sua conta.' });
       }
 
-      res.json({ success: true, email: user.email, status: user.subscription_status, name: user.name });
+      if (user.password !== password) {
+        return res.status(401).json({ error: 'Credenciais inválidas. Verifique sua senha.' });
+      }
+
+      res.json({ success: true, email: user.email, status: user.subscription_status || 'inactive', name: user.name || 'Operador' });
     } catch (error: any) {
       console.error('Login error:', error);
       res.status(500).json({ error: `Erro no servidor ao logar: ${error.message || 'Erro desconhecido'}` });
@@ -663,18 +709,30 @@ app.get('/api/config', (req, res) => {
         return res.json({ status: 'active', name: 'Leonardo (Dev)' });
       }
 
-      const { data: user } = await supabase
-        .from('users')
-        .select('subscription_status, name')
-        .eq('email', email)
-        .single();
+      let user: any = null;
+      try {
+        const { data } = await supabase
+          .from('users')
+          .select('subscription_status, name')
+          .eq('email', email)
+          .single();
+        if (data) user = data;
+      } catch (e) {
+        console.warn('[USER STATUS] Supabase query notice:', e);
+      }
+
+      if (!user) {
+        const localUsers = readDb();
+        user = localUsers.find((u: any) => u.email === email);
+      }
       
       if (!user) {
         return res.json({ status: 'pending' });
       }
       
-      res.json({ status: user.subscription_status, name: user.name });
+      res.json({ status: user.subscription_status || 'inactive', name: user.name || 'Operador' });
     } catch (error) {
+      console.error('Status check error:', error);
       res.status(500).json({ error: 'Erro ao verificar status.' });
     }
   });
@@ -682,16 +740,27 @@ app.get('/api/config', (req, res) => {
   app.get('/api/user/history', checkSupabase, async (req, res) => {
     try {
       const supabase = (req as any).supabase;
-      const email = req.query.email as string;
+      const email = (req.query.email as string)?.trim().toLowerCase();
       if (!email) return res.status(400).json({ error: 'Email não fornecido.' });
       
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('history')
-        .eq('email', email)
-        .single();
+      let user: any = null;
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('history')
+          .eq('email', email)
+          .single();
+        if (!error && data) user = data;
+      } catch (e) {
+        console.warn('[USER HISTORY] Supabase query notice:', e);
+      }
+
+      if (!user) {
+        const localUsers = readDb();
+        user = localUsers.find((u: any) => u.email === email);
+      }
       
-      if (error || !user) return res.status(404).json({ error: 'Usuário não encontrado.' });
+      if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
       
       res.json({ history: user.history || { answeredQuestions: {} } });
     } catch (error) {

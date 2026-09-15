@@ -49,9 +49,70 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
 
     try {
       if (mode === 'SIGNUP') {
-        if (!name.trim() && !isDev) throw new Error('POR FAVOR, INFORME SEU NOME COMPLETO.');
+        const cleanName = name.trim();
+        if (!cleanName && !isDev) throw new Error('POR FAVOR, INFORME SEU NOME COMPLETO.');
         if (password.length < 6 && !isDev) throw new Error('A SENHA DEVE TER NO MÍNIMO 6 CARACTERES.');
         if (password !== confirmPassword && !isDev) throw new Error('AS SENHAS NÃO CONFEREM. VERIFIQUE E TENTE NOVAMENTE.');
+
+        // Registro via endpoint da aplicação (100% seguro contra bloqueios de terceiros e CORS)
+        let regResponse: Response;
+        try {
+          regResponse = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: cleanedEmail,
+              password,
+              name: cleanName || (isDev ? 'Leonardo (Dev)' : 'Operador')
+            }),
+          });
+        } catch (fetchErr: any) {
+          console.warn('[SIGNUP] Falha de rede ao chamar /api/auth/register:', fetchErr);
+          throw new Error('FALHA DE CONEXÃO COM O SERVIDOR. VERIFIQUE SUA INTERNET E TENTE NOVAMENTE.');
+        }
+
+        const regData = await regResponse.json().catch(() => ({}));
+
+        if (!regResponse.ok) {
+          const errorMsg = (regData.error || '').toString();
+          if (errorMsg.toLowerCase().includes('cadastrado') || regData.alreadyRegistered) {
+            throw new Error('ESTE E-MAIL JÁ ESTÁ CADASTRADO. FAÇA LOGIN OU RECUPERE SUA SENHA.');
+          }
+          throw new Error(errorMsg || 'ERRO AO CRIAR CONTA. TENTE NOVAMENTE.');
+        }
+
+        // Sincronização secundária opcional no Supabase Client (não-bloqueante)
+        try {
+          if (supabase && typeof supabase.auth?.signUp === 'function') {
+            await supabase.auth.signUp({
+              email: cleanedEmail,
+              password,
+              options: {
+                data: { full_name: cleanName || 'Operador' }
+              }
+            });
+          }
+        } catch (supaClientErr) {
+          console.log('[SIGNUP] Sincronização Supabase client secundária ignorada com segurança:', supaClientErr);
+        }
+
+        localStorage.setItem('PF_USER_EMAIL', cleanedEmail);
+        localStorage.setItem('PF_USER_NAME', cleanName || 'Operador');
+        localStorage.setItem('PF_LOGGED', 'true');
+
+        if (saveCredentials) {
+          localStorage.setItem(SAVED_EMAIL_KEY, cleanedEmail);
+          localStorage.setItem(SAVED_PASSWORD_KEY, password);
+          localStorage.setItem(REMEMBER_ME_KEY, 'true');
+        }
+
+        setSuccessMessage("CONTA CRIADA COM SUCESSO! REDIRECIONANDO PARA ESCOLHA DE PLANO...");
+        
+        setTimeout(() => {
+          onAuth();
+          onSuccess(cleanedEmail, cleanName || 'Operador');
+        }, 1000);
+        return;
       }
 
       if (mode === 'LOGIN') {
@@ -65,134 +126,111 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: cleanedEmail, password }),
           });
-          const apiData = await apiRes.json();
+          const apiData = await apiRes.json().catch(() => ({}));
           if (apiRes.ok && apiData.success) {
             loginOk = true;
             userNameResult = apiData.name || (isDev ? 'Leonardo (Dev)' : 'Operador');
+          } else if (apiRes.status === 401) {
+            throw new Error('E-MAIL OU SENHA INCORRETOS. VERIFIQUE SEUS DADOS E TENTE NOVAMENTE.');
           }
-        } catch (apiErr) {
+        } catch (apiErr: any) {
+          if (apiErr.message && apiErr.message.includes('INCORRETOS')) {
+            throw apiErr;
+          }
           console.warn('[LOGIN API] Falha na rota API, tentando Supabase Auth:', apiErr);
         }
 
         // 2. Se a API backend não logou, tentar via cliente Supabase Auth
         if (!loginOk) {
-          const { data, error: authError } = await supabase.auth.signInWithPassword({
-            email: cleanedEmail,
-            password,
-          });
+          try {
+            const { data, error: authError } = await supabase.auth.signInWithPassword({
+              email: cleanedEmail,
+              password,
+            });
 
-          if (authError) {
+            if (authError) {
+              if (isDev) {
+                console.log('[LOGIN] Bypass de desenvolvedor/admin acionado.');
+                loginOk = true;
+                userNameResult = 'Leonardo (Dev)';
+              } else {
+                if (authError.message === 'Email not confirmed') {
+                  throw new Error('SEU E-MAIL AINDA NÃO FOI CONFIRMADO. VERIFIQUE SUA CAIXA DE ENTRADA OU SPAM PARA VALIDAR SUA CONTA.');
+                }
+                if (authError.message === 'Invalid login credentials' || authError.message.toLowerCase().includes('invalid')) {
+                  throw new Error('E-MAIL OU SENHA INCORRETOS. VERIFIQUE SEUS DADOS E TENTE NOVAMENTE.');
+                }
+                throw authError;
+              }
+            } else {
+              loginOk = true;
+              let { data: profile } = await supabase
+                .from('users')
+                .select('name')
+                .eq('email', cleanedEmail)
+                .single();
+              if (profile?.name) userNameResult = profile.name;
+            }
+          } catch (supaErr: any) {
             if (isDev) {
-              console.log('[LOGIN] Bypass de desenvolvedor/admin acionado.');
               loginOk = true;
               userNameResult = 'Leonardo (Dev)';
             } else {
-              if (authError.message === 'Email not confirmed') {
-                throw new Error('SEU E-MAIL AINDA NÃO FOI CONFIRMADO. VERIFIQUE SUA CAIXA DE ENTRADA OU SPAM PARA VALIDAR SUA CONTA.');
-              }
-              if (authError.message === 'Invalid login credentials') {
-                throw new Error('E-MAIL OU SENHA INCORRETOS. VERIFIQUE SEUS DADOS E TENTE NOVAMENTE.');
-              }
-              throw authError;
+              throw supaErr;
             }
-          } else {
-            loginOk = true;
-            let { data: profile } = await supabase
-              .from('users')
-              .select('name')
-              .eq('email', cleanedEmail)
-              .single();
-            if (profile?.name) userNameResult = profile.name;
           }
         }
 
         if (loginOk) {
           localStorage.setItem('PF_USER_EMAIL', cleanedEmail);
+          if (userNameResult) localStorage.setItem('PF_USER_NAME', userNameResult);
+          localStorage.setItem('PF_LOGGED', 'true');
           if (saveCredentials) {
-            localStorage.setItem(SAVED_EMAIL_KEY, email);
+            localStorage.setItem(SAVED_EMAIL_KEY, cleanedEmail);
             localStorage.setItem(SAVED_PASSWORD_KEY, password);
             localStorage.setItem(REMEMBER_ME_KEY, 'true');
           }
           onAuth();
           onSuccess(cleanedEmail, userNameResult);
           return;
+        } else {
+          throw new Error('E-MAIL OU SENHA INCORRETOS. VERIFIQUE SEUS DADOS E TENTE NOVAMENTE.');
         }
-      } else if (mode === 'SIGNUP') {
-        if (isDev) {
-          // Dev conta sempre é ativada imediatamente
-          await fetch('/api/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: cleanedEmail, password, name: name || 'Leonardo (Dev)' }),
-          });
-          localStorage.setItem('PF_USER_EMAIL', cleanedEmail);
-          onAuth();
-          onSuccess(cleanedEmail, name || 'Leonardo (Dev)');
-          return;
-        }
-
-        // Passo 1: Cadastro no Supabase Auth para usuários comuns
-        const { data: signUpData, error: authError } = await supabase.auth.signUp({
-          email: cleanedEmail,
-          password,
-          options: {
-            data: {
-              full_name: name,
-            },
-          },
-        });
-
-        if (authError) {
-          if (authError.message.toLowerCase().includes('already registered')) {
-            throw new Error('ESTE E-MAIL JÁ ESTÁ CADASTRADO. FAÇA LOGIN OU RECUPERE SUA SENHA.');
-          }
-          throw authError;
-        }
-
-        // Passo 2: Registro no backend
-        try {
-          const response = await fetch('/api/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: cleanedEmail, password, name }),
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            if (errorData.error && errorData.error.toLowerCase().includes('cadastrado')) {
-              throw new Error('ESTE E-MAIL JÁ ESTÁ CADASTRADO. FAÇA LOGIN OU RECUPERE SUA SENHA.');
-            } else {
-              throw new Error(errorData.error || 'ERRO AO CRIAR PERFIL NA BASE DE DADOS.');
-            }
-          }
-        } catch (apiErr: any) {
-          console.error("Erro na sincronização da conta:", apiErr);
-          if (apiErr.message.includes('CADASTRADO')) throw apiErr;
-        }
-
-        setSuccessMessage("CONTA CRIADA COM SUCESSO! REDIRECIONANDO PARA ESCOLHA DE PLANO...");
-        
-        setTimeout(() => {
-          onAuth();
-          onSuccess(cleanedEmail, name);
-        }, 1200);
       } else if (mode === 'FORGOT_PASSWORD') {
         if (isDev) {
           setSuccessMessage("SUA CONTA DE ADMINISTRADOR FOI CONFIRMADA. UTILIZE A SENHA: " + password);
           return;
         }
 
-        const { error: authError } = await supabase.auth.resetPasswordForEmail(cleanedEmail, {
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
+        let sentOk = false;
+        try {
+          const apiRes = await fetch('/api/auth/forgot-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: cleanedEmail }),
+          });
+          if (apiRes.ok) sentOk = true;
+        } catch (e) {
+          console.warn('[FORGOT PASSWORD] API route warning:', e);
+        }
 
-        if (authError) throw authError;
-        setSuccessMessage("EMAIL DE RECUPERAÇÃO ENVIADO COM SUCESSO! VERIFIQUE SUA CAIXA DE ENTRADA.");
+        if (!sentOk) {
+          try {
+            const { error: authError } = await supabase.auth.resetPasswordForEmail(cleanedEmail, {
+              redirectTo: `${window.location.origin}/reset-password`,
+            });
+            if (authError) throw authError;
+          } catch (e) {
+            console.warn('[FORGOT PASSWORD] Supabase direct reset warning:', e);
+          }
+        }
+
+        setSuccessMessage("SOLICITAÇÃO DE RECUPERAÇÃO ENVIADA! VERIFIQUE SEU E-MAIL (CAIXA DE ENTRADA OU SPAM).");
       }
 
       // Persistência de Credenciais se o usuário marcou a opção
       if (saveCredentials) {
-        localStorage.setItem(SAVED_EMAIL_KEY, email);
+        localStorage.setItem(SAVED_EMAIL_KEY, cleanedEmail);
         localStorage.setItem(SAVED_PASSWORD_KEY, password);
         localStorage.setItem(REMEMBER_ME_KEY, 'true');
       } else {
@@ -201,7 +239,14 @@ export const Auth: React.FC<AuthProps> = ({ mode, onAuth, onGoLogin, onGoSignup,
         localStorage.setItem(REMEMBER_ME_KEY, 'false');
       }
     } catch (err: any) {
-      setError(err.message.toUpperCase());
+      console.error('[Auth Error]', err);
+      const rawMsg = err?.message || 'ERRO AO PROCESSAR REQUISIÇÃO. TENTE NOVAMENTE.';
+      const lower = rawMsg.toLowerCase();
+      if (lower.includes('load failed') || lower.includes('failed to fetch') || lower.includes('networkerror') || lower.includes('network error')) {
+        setError('FALHA DE COMUNICAÇÃO. VERIFIQUE SUA CONEXÃO OU TENTE NOVAMENTE EM INSTANTES.');
+      } else {
+        setError(rawMsg.toUpperCase());
+      }
     } finally {
       setIsLoading(false);
     }
